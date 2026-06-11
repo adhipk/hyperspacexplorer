@@ -6,7 +6,19 @@ function editButton(page) {
 
 async function enableEditing(page) {
   await editButton(page).click();
-  await expect(page.locator("main")).toHaveAttribute("contenteditable", "true");
+  await expect(page.locator("html")).toHaveClass(/hx-editor-on/);
+  await expect(page.locator("main")).not.toHaveAttribute(
+    "contenteditable",
+    "true"
+  );
+}
+
+async function activateEditableTarget(page, selector) {
+  await page.locator(selector).dblclick();
+  await expect(page.locator(selector)).toHaveAttribute(
+    "contenteditable",
+    "true"
+  );
 }
 
 async function highlightText(page, selector, start, end, shiftKey = false) {
@@ -52,21 +64,31 @@ async function commentText(page, selector, start, end) {
 }
 
 test("project documentation pages load with the editor toolbar", async ({ page }) => {
-  await page.goto("/");
+  const pages = [
+    { path: "/", heading: "Drop-in editing" },
+    { path: "/current-state.html", heading: "What hyperedit.js does today" },
+    { path: "/phase2.html", heading: "Save edited HTML" },
+    { path: "/plan.html", heading: "Progress and next work" },
+    {
+      path: "/comment-isolation.html",
+      heading: "Durable annotations without corrupting page text",
+    },
+  ];
 
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "Single script editing"
-  );
-  await expect(editButton(page)).toBeVisible();
-
-  await page.goto("/phase2.html");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "Save edited HTML"
-  );
-  await expect(editButton(page)).toBeVisible();
+  for (const docsPage of pages) {
+    await page.goto(docsPage.path);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      docsPage.heading
+    );
+    await expect(editButton(page)).toBeVisible();
+    await expect(page.locator("script[src$='hyperedit.js']")).toHaveAttribute(
+      "data-save-url",
+      "/__hyperedit/save"
+    );
+  }
 });
 
-test("edit toggle uses native contenteditable on the document root", async ({
+test("edit toggle enables targeted contenteditable blocks", async ({
   page,
 }) => {
   await page.goto("/");
@@ -75,10 +97,20 @@ test("edit toggle uses native contenteditable on the document root", async ({
   await expect(root).not.toHaveAttribute("contenteditable", "true");
 
   await enableEditing(page);
-  await expect(root).toHaveAttribute("contenteditable", "true");
+  await expect(root).not.toHaveAttribute("contenteditable", "true");
+
+  await activateEditableTarget(page, "h1");
+  await expect(page.locator(".lede").first()).not.toHaveAttribute(
+    "contenteditable",
+    "true"
+  );
 
   await editButton(page).click();
   await expect(root).not.toHaveAttribute("contenteditable", "true");
+  await expect(page.locator("h1")).not.toHaveAttribute(
+    "contenteditable",
+    "true"
+  );
 });
 
 test("edit toggle does not shift document layout", async ({ page }) => {
@@ -101,7 +133,7 @@ test("serialized html strips temporary editor state", async ({ page }) => {
   const html = await page.evaluate(() => window.HyperEdit.serialize());
 
   expect(html).toContain("<!DOCTYPE html>");
-  expect(html).toContain("Single script editing for ordinary HTML pages.");
+  expect(html).toContain("Drop-in editing for ordinary HTML pages.");
   expect(html).not.toContain("hx-editor-on");
   expect(html).not.toContain("hx-editor-editable");
   expect(html).not.toContain("data-hx-prev-contenteditable");
@@ -112,13 +144,16 @@ test("save without backend stores a cleaned local draft", async ({ page }) => {
   await page.goto("/");
   await enableEditing(page);
 
-  await page.evaluate(() => window.HyperEdit.save());
+  await page.evaluate(() => {
+    window.HyperEdit.configure({ saveUrl: "" });
+    return window.HyperEdit.save();
+  });
 
   const draft = await page.evaluate(() =>
     localStorage.getItem(`hyperedit:${location.origin}${location.pathname}:draft`)
   );
 
-  expect(draft).toContain("Single script editing for ordinary HTML pages.");
+  expect(draft).toContain("Drop-in editing for ordinary HTML pages.");
   expect(draft).not.toContain("hx-editor-editable");
 });
 
@@ -150,6 +185,32 @@ test("save hook posts serialized html to a configured backend URL", async ({
   expect(payload.html).toContain("Generic save hook.");
   expect(payload.html).toContain("<!DOCTYPE html>");
   expect(payload.html).not.toContain("hx-editor-editable");
+});
+
+test("comment notes are saved into the html payload", async ({ page }) => {
+  let payload;
+
+  await page.route("**/__hyperedit/save", async (route, request) => {
+    payload = request.postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  });
+
+  await page.goto("/comment-isolation.html");
+  await enableEditing(page);
+  await commentText(page, "h1", 0, 8);
+  await page.locator("[data-hx-comment-box]").fill("Durable editor note.");
+
+  await page.evaluate(() => window.HyperEdit.save());
+
+  expect(payload.pathname).toBe("/comment-isolation.html");
+  expect(payload.html).toContain("Durable editor note.");
+  expect(payload.html).toContain("data-hx-comment-anchor");
+  expect(payload.html).toContain("data-hx-comment-box");
+  expect(payload.html).not.toContain('data-hx-comment-box="" contenteditable="true"');
 });
 
 test("comment tool creates an inline floating comment box", async ({ page }) => {
@@ -239,7 +300,45 @@ test("floating comment boxes can be moved", async ({ page }) => {
   expect(after.y).toBeGreaterThan(before.y + 20);
 });
 
+test("undo restores native contenteditable input before save", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await enableEditing(page);
+
+  const heading = page.locator("h1");
+  const originalHeading = await heading.textContent();
+  await activateEditableTarget(page, "h1");
+  await page.evaluate(() => {
+    const heading = document.querySelector("h1");
+    const textNode = Array.from(heading.childNodes).find(
+      (node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim()
+    );
+    const range = document.createRange();
+    heading.focus();
+    range.setStart(textNode, 0);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+
+  await page.keyboard.type("X");
+  await expect(heading).toHaveText(`X${originalHeading}`);
+
+  await page.getByRole("button", { name: "Undo last change" }).click();
+  await expect(heading).toHaveText(originalHeading);
+});
+
 test("undo restores the previous document after save", async ({ page }) => {
+  await page.route("**/__hyperedit/save", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  });
+
   await page.goto("/");
   await enableEditing(page);
 

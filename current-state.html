@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HyperEdit Current State</title>
+    <link rel="stylesheet" href="./docs.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="site-header" data-hx-ignore>
+        <p class="brand">HyperEdit</p>
+        <nav class="site-nav" aria-label="Project pages">
+          <a href="./index.html">Overview</a>
+          <a href="./current-state.html">Current State</a>
+          <a href="./phase2.html">Phase 2</a>
+          <a href="./plan.html">Plan</a>
+          <a href="./comment-isolation.html">Comment Isolation</a>
+          <a href="./design-doc.svg">Design SVG</a>
+        </nav>
+      </header>
+
+      <main data-testid="editable-root">
+        <section>
+          <p class="eyebrow">Current State</p>
+          <h1>What hyperedit.js does today.</h1>
+        </section>
+
+        <p class="lede">
+          <code>hyperedit.js</code> is the current browser include that turns
+          one configured page root into a lightweight editing surface. It
+          injects its own toolbar, uses native
+          <code>contenteditable</code> for text edits, wraps selected text for
+          highlights and comments, tracks a small undo stack, and saves either
+          to <code>localStorage</code> or a configured backend URL.
+        </p>
+
+        <section class="section">
+          <h2>Runtime shape</h2>
+          <div class="facts">
+            <div class="fact">
+              <h3>Current include</h3>
+              <p>
+                The file is an immediately invoked function expression. It
+                avoids double mounting when <code>window.HyperEdit</code>
+                already exists. This describes the current include, not a
+                required source layout.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>One editable root</h3>
+              <p>
+                <code>data-root</code> chooses the editable root. Without it,
+                the script falls back to <code>body</code>.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>Shadow DOM toolbar</h3>
+              <p>
+                Runtime controls live in a Shadow DOM host appended to
+                <code>document.body</code>, separate from the page markup.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section split">
+          <div>
+            <h2>Source boundary</h2>
+          </div>
+          <div>
+            <p>
+              The project can move to modular source files for tools, state,
+              rendering, persistence, and serialization, but the near-term
+              cleanup should not introduce a bundler or generated build step.
+              The useful minimum is typed plain JavaScript, clear local
+              boundaries, and fewer hidden cross-dependencies.
+            </p>
+          </div>
+        </section>
+
+        <section class="section split">
+          <div>
+            <h2>Configuration</h2>
+          </div>
+          <pre><code>&lt;script
+  src="/hyperedit.js"
+  data-root="main"
+  data-autostart="true"
+  data-save-url="/__hyperedit/save"
+  data-storage-key="custom-key"&gt;&lt;/script&gt;</code></pre>
+        </section>
+
+        <section class="section">
+          <h2>Source map</h2>
+          <div class="table-wrap">
+            <table class="comparison">
+              <thead>
+                <tr>
+                  <th>Lines</th>
+                  <th>Area</th>
+                  <th>Responsibility</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th>1-80</th>
+                  <td>Bootstrap</td>
+                  <td>
+                    Reads script options, creates shared state, initializes
+                    styles, toolbar, global events, editable discovery, and
+                    optional autostart.
+                  </td>
+                </tr>
+                <tr>
+                  <th>81-545</th>
+                  <td>UI creation</td>
+                  <td>
+                    Injects page-level editor CSS and builds the Shadow DOM
+                    toolbar, annotation panel, color swatches, status dot, and
+                    inline SVG icons.
+                  </td>
+                </tr>
+                <tr>
+                  <th>548-808</th>
+                  <td>Event routing</td>
+                  <td>
+                    Handles toolbar commands, document input, selection mouseup,
+                    comment dragging, annotation clicks, Escape, and
+                    Command/Ctrl-S.
+                  </td>
+                </tr>
+                <tr>
+                  <th>811-925</th>
+                  <td>Edit mode</td>
+                  <td>
+                    Applies and restores <code>contenteditable</code> and
+                    <code>spellcheck</code> on the configured root and toggles
+                    editor classes.
+                  </td>
+                </tr>
+                <tr>
+                  <th>927-1076</th>
+                  <td>Selections and comments</td>
+                  <td>
+                    Converts selected ranges into
+                    <code>mark[data-hx-highlight]</code> or
+                    <code>span[data-hx-comment-anchor]</code>, then creates
+                    floating comment boxes tied by <code>data-hx-id</code>.
+                  </td>
+                </tr>
+                <tr>
+                  <th>1079-1332</th>
+                  <td>Annotations</td>
+                  <td>
+                    Renders the annotations panel, focuses annotations, attaches
+                    comments, removes one or all annotations, and escapes panel
+                    text.
+                  </td>
+                </tr>
+                <tr>
+                  <th>1335-1438</th>
+                  <td>Color sampling</td>
+                  <td>
+                    Uses <code>EyeDropper</code> when available, otherwise
+                    samples computed colors from a clicked element and copies
+                    the hex value.
+                  </td>
+                </tr>
+                <tr>
+                  <th>1441-1559</th>
+                  <td>Undo and save</td>
+                  <td>
+                    Stores root HTML snapshots, writes cleaned drafts to
+                    <code>localStorage</code>, dispatches save lifecycle events,
+                    and POSTs serialized HTML when a save URL exists.
+                  </td>
+                </tr>
+                <tr>
+                  <th>1561-1747</th>
+                  <td>Serialization and API</td>
+                  <td>
+                    Clones the current document, removes HyperEdit runtime UI,
+                    restores edit attributes, exposes <code>window.HyperEdit</code>,
+                    and supports destroy, enable, disable, save, undo,
+                    serialize, refresh, and configure.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Tool behavior</h2>
+          <div class="details-list">
+            <details open>
+              <summary>Edit</summary>
+              <p>
+                Toggling edit mode makes the configured root editable, remembers
+                the previous <code>contenteditable</code> and
+                <code>spellcheck</code> values, and restores them when editing
+                stops.
+              </p>
+            </details>
+            <details>
+              <summary>Select</summary>
+              <p>
+                Select is the neutral tool. Double-clicking an editable area
+                returns to select mode and focuses the editable root.
+              </p>
+            </details>
+            <details>
+              <summary>Highlight</summary>
+              <p>
+                Mouse selection plus the highlight tool wraps selected DOM in a
+                <code>mark</code> with a HyperEdit id, color name, pale
+                background, and inherited text color. Shift while highlighting
+                also opens a comment box.
+              </p>
+            </details>
+            <details>
+              <summary>Comment</summary>
+              <p>
+                Comment wraps selected DOM in a span anchor, creates an
+                absolutely positioned editable comment box inside the root, and
+                mirrors box text into the anchor's
+                <code>data-hx-comment</code> attribute.
+              </p>
+            </details>
+            <details>
+              <summary>Annotations</summary>
+              <p>
+                The panel lists highlights and comment anchors, shows snippets,
+                can focus a target, create or reopen its comment box, delete one
+                annotation, or remove all annotations from the root.
+              </p>
+            </details>
+            <details>
+              <summary>Color sample</summary>
+              <p>
+                Sampling replaces the currently selected palette color. Native
+                <code>EyeDropper</code> is preferred; the fallback samples
+                computed background color, then text color.
+              </p>
+            </details>
+            <details>
+              <summary>Undo</summary>
+              <p>
+                Undo restores prior <code>root.innerHTML</code> snapshots. The
+                stack is capped at 40 entries, and a post-save undo can return
+                to the last saved root HTML.
+              </p>
+            </details>
+            <details>
+              <summary>Save</summary>
+              <p>
+                Dirty edits schedule a local draft after 450ms. Manual save
+                serializes the whole document, emits
+                <code>hyperedit:before-save</code>, then either POSTs the
+                payload or stores a cleaned draft locally.
+              </p>
+            </details>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Save contract</h2>
+          <div class="decision-grid">
+            <article class="decision">
+              <span class="status-pill accepted">Current</span>
+              <h3>Payload</h3>
+              <p>
+                Save sends <code>pathname</code>, <code>title</code>,
+                <code>html</code>, <code>source</code>, and
+                <code>updatedAt</code>.
+              </p>
+            </article>
+            <article class="decision">
+              <span class="status-pill accepted">Current</span>
+              <h3>Local fallback</h3>
+              <p>
+                Without <code>data-save-url</code>, the same serialized HTML is
+                stored at <code>{storageKey}:draft</code> in
+                <code>localStorage</code>.
+              </p>
+            </article>
+            <article class="decision">
+              <span class="status-pill accepted">Reference</span>
+              <h3>Bun writer</h3>
+              <p>
+                <code>server.js</code> serves project files and writes submitted
+                HTML to a resolved <code>.html</code> path inside the project
+                root.
+              </p>
+            </article>
+            <article class="decision">
+              <span class="status-pill rejected">Not final</span>
+              <h3>Raw DOM source</h3>
+              <p>
+                Serialization removes HyperEdit's own toolbar and temporary edit
+                classes, but it still clones the live browser document.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Known constraints</h2>
+          <div class="details-list">
+            <details open>
+              <summary>Monolithic implementation</summary>
+              <p>
+                The current source file mixes UI rendering, state, event
+                routing, editing, annotations, persistence, serialization, and
+                public API. That is a current-state observation, not a product
+                requirement. The first improvement should be modularity with
+                type safety, not a build pipeline.
+              </p>
+            </details>
+            <details>
+              <summary>Type safety is missing</summary>
+              <p>
+                The script is plain JavaScript without JSDoc data contracts or
+                static checking. Adding those contracts would reduce risk before
+                larger source-file splits.
+              </p>
+            </details>
+            <details>
+              <summary>Single-root editing</summary>
+              <p>
+                The script only treats the configured root as editable. Current
+                docs use <code>data-root="main"</code>, so headers are outside
+                the edit surface. <code>data-hx-ignore</code> is present in
+                markup but is not currently interpreted by the script.
+              </p>
+            </details>
+            <details>
+              <summary>Comment boxes live in content</summary>
+              <p>
+                Comment boxes are appended inside the editable root. Save strips
+                their editable attributes, but the boxes themselves remain part
+                of serialized page HTML.
+              </p>
+            </details>
+            <details>
+              <summary>Full document serialization</summary>
+              <p>
+                Save clones <code>document.documentElement</code>. HyperEdit UI
+                is removed, but unrelated runtime DOM from other scripts or
+                extensions is not categorically excluded.
+              </p>
+            </details>
+            <details>
+              <summary>Range handling is browser-DOM based</summary>
+              <p>
+                Highlights and comments use <code>Range.extractContents()</code>
+                and <code>insertNode()</code>. Complex selections across nested
+                structures are not yet normalized into a stable semantic model.
+              </p>
+            </details>
+            <details>
+              <summary>Reference server is local-only</summary>
+              <p>
+                The Bun server validates paths and extensions, but it does not
+                add authentication, authorization, CSRF protection, audit logs,
+                or merge conflict handling.
+              </p>
+            </details>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Tested behavior</h2>
+          <ol>
+            <li>Documentation pages load with the injected toolbar.</li>
+            <li>Edit mode toggles <code>contenteditable</code> on <code>main</code>.</li>
+            <li>The edit toggle does not shift the heading layout.</li>
+            <li>Serialization removes temporary editor state.</li>
+            <li>Saving without a backend stores a cleaned local draft.</li>
+            <li>The save hook POSTs serialized HTML to a configured URL.</li>
+            <li>Comments create inline floating comment boxes.</li>
+            <li>Existing highlights can receive comments.</li>
+            <li>The annotations panel can list, delete, and clear annotations.</li>
+            <li>Floating comment boxes can be moved.</li>
+            <li>Undo can restore the previous document after save.</li>
+          </ol>
+        </section>
+
+        <section class="section">
+          <h2>Current read</h2>
+          <p>
+            The project is a working prototype for a drop-in HTML editor. The
+            interaction loop is proven enough to continue. The immediate plan is
+            typed source cleanup first; saved source format, comment overlay
+            placement, and tool/event boundaries remain unresolved architecture
+            issues for the following passes.
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <script
+      src="./hyperedit.js"
+      data-root="main"
+      data-save-url="/__hyperedit/save"
+    ></script>
+  </body>
+</html>

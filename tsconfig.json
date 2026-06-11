@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "lib": ["DOM", "ES2020"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noImplicitAny": true,
+    "noEmit": true,
+    "strict": false,
+    "strictNullChecks": false,
+    "target": "ES2020"
+  },
+  "include": ["hyperedit.js"]
+}

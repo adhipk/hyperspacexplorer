@@ -4,12 +4,14 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "check": "node --check hyperedit.js && node --check server.js",
+    "check": "node --check hyperedit.js && node --check server.js && bun run typecheck",
     "serve": "bun server.js",
     "serve:python": "python3 -m http.server 5173 --bind 127.0.0.1",
-    "test": "playwright test"
+    "test": "playwright test",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
-    "@playwright/test": "1.60.0"
+    "@playwright/test": "1.60.0",
+    "typescript": "^6.0.3"
   }
 }

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>HyperEdit Plan</title>
+    <title>HyperEdit Progress Plan</title>
     <link rel="stylesheet" href="./docs.css" />
   </head>
   <body>
@@ -12,8 +12,10 @@
         <p class="brand">HyperEdit</p>
         <nav class="site-nav" aria-label="Project pages">
           <a href="./index.html">Overview</a>
+          <a href="./current-state.html">Current State</a>
           <a href="./phase2.html">Phase 2</a>
           <a href="./plan.html">Plan</a>
+          <a href="./comment-isolation.html">Comment Isolation</a>
           <a href="./design-doc.svg">Design SVG</a>
         </nav>
       </header>
@@ -21,258 +23,255 @@
       <main data-testid="editable-root">
         <section>
           <p class="eyebrow">Planning Artifact</p>
-          <h1>Plan in HTML, persist only what HyperEdit owns.</h1>
+          <h1>Progress and next work.</h1>
         </section>
 
         <p class="lede">
-          Planning decisions live in HTML artifacts so the plan can include
-          interactive sections, comparisons, and richer structure. Markdown
-          planning artifacts are intentionally not part of this project.
+          The active path is typed plain JavaScript with small local
+          boundaries. HyperEdit still ships as a direct browser include; source
+          modularity can grow only where it removes real friction.
         </p>
 
         <section class="section">
-          <h2>Decision status</h2>
+          <h2>Current status</h2>
+          <div class="facts">
+            <div class="fact">
+              <h3>Typed baseline is in place</h3>
+              <p>
+                <code>hyperedit.js</code> now runs under
+                <code>// @ts-check</code> with JSDoc typedefs and
+                <code>noImplicitAny</code> static checking.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>Runtime contract stayed stable</h3>
+              <p>
+                The browser include, editor behaviors, save payload shape, and
+                local draft flow were kept compatible with the existing pages.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>Bun owns the workflow</h3>
+              <p>
+                <code>bun run check</code> covers syntax and type checks, and
+                <code>bun run test</code> runs the Playwright suite.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Completed milestones</h2>
+          <ol>
+            <li>
+              Added the current-state artifact so the existing JavaScript,
+              server role, save behavior, and known limits are documented
+              outside the source file.
+            </li>
+            <li>
+              Adopted Bun for package management and project scripts, including
+              the generated lockfile.
+            </li>
+            <li>
+              Added JSDoc data contracts for options, annotations, state,
+              colors, save payloads, and save results.
+            </li>
+            <li>
+              Enabled static checking for plain JavaScript without introducing
+              TypeScript output, a bundler, or generated runtime files.
+            </li>
+            <li>
+              Isolated typed helper boundaries for selectors, annotation lookup,
+              annotation panel rendering/actions, color parsing, serialization
+              cleanup, and save/draft/event flow.
+            </li>
+            <li>
+              Added typed history and input-event boundaries for undo capture,
+              root snapshot restore, saved-root fallback, and editable input
+              target checks.
+            </li>
+            <li>
+              Wired project HTML artifacts to the Bun save endpoint and added a
+              regression test proving HyperEdit comment notes are included in
+              the saved HTML payload.
+            </li>
+            <li>
+              Accepted the durable annotation model: the HTML file remains the
+              source of truth, while annotations become separate durable objects
+              stored with the artifact and rendered as part of the page.
+            </li>
+            <li>
+              Accepted targeted live editing: users need to make small changes
+              directly, but the frontend should record focused deltas or durable
+              edit objects rather than treating the whole page as editable
+              source.
+            </li>
+            <li>
+              Replaced whole-page <code>contenteditable</code> activation with
+              targeted block activation: edit mode turns on tools, and text
+              input requires activating a specific block.
+            </li>
+            <li>
+              Verified the current behavior with <code>bun run check</code> and
+              the Playwright test suite.
+            </li>
+          </ol>
+        </section>
+
+        <section class="section">
+          <h2>Standing decisions</h2>
           <div class="decision-grid">
             <article class="decision">
               <span class="status-pill accepted">Accepted</span>
-              <h3>Single script frontend</h3>
+              <h3>No build step yet</h3>
               <p>
-                HyperEdit remains a drop-in JavaScript file that injects its UI
-                into ordinary HTML pages.
+                Keep the runtime source directly loadable in the browser. Do
+                not add a bundler, transpiler, framework migration, or generated
+                output for this phase.
               </p>
             </article>
             <article class="decision">
               <span class="status-pill accepted">Accepted</span>
-              <h3>Generic save endpoint</h3>
+              <h3>Typed JS first</h3>
               <p>
-                The frontend posts to a configurable <code>data-save-url</code>.
-                The Bun server is only a reference implementation.
+                Use JSDoc and static checks before considering TypeScript files
+                or a compile pipeline.
               </p>
             </article>
             <article class="decision">
-              <span class="status-pill rejected">Rejected</span>
-              <h3>Raw DOM as source of truth</h3>
+              <span class="status-pill accepted">Accepted</span>
+              <h3>Minimal modularity</h3>
               <p>
-                The live browser DOM can include extension nodes and runtime UI,
-                so it should not be the long-term save format.
+                Split code only when the boundary is already obvious and the
+                split can use browser-native ES modules.
               </p>
             </article>
             <article class="decision">
-              <span class="status-pill next">Next</span>
-              <h3>Owned artifacts</h3>
+              <span class="status-pill rejected">Prototype only</span>
+              <h3>Full DOM snapshots</h3>
               <p>
-                Save structured HyperEdit artifacts, then reconcile them with
-                clean source HTML.
+                Full-document HTML save remains acceptable for the prototype,
+                but it is not the long-term source of truth.
+              </p>
+            </article>
+            <article class="decision">
+              <span class="status-pill accepted">Accepted</span>
+              <h3>Durable annotations</h3>
+              <p>
+                User comments are editor feedback stored with the HTML artifact,
+                rendered into the page, and kept separate from source text so
+                the agent can safely update the document.
+              </p>
+            </article>
+            <article class="decision">
+              <span class="status-pill accepted">Accepted</span>
+              <h3>Targeted editing</h3>
+              <p>
+                Live document editing is required, but whole-page edit mode is
+                the wrong boundary. User edits should become focused deltas the
+                agent can reconcile with the source.
               </p>
             </article>
           </div>
         </section>
 
-        <section class="section split">
-          <div>
-            <h2>Goal</h2>
-          </div>
-          <div>
-            <p>
-              Build a single JavaScript file that turns ordinary HTML pages into
-              a lightweight editing surface with minimal page-author setup.
-            </p>
-            <ul>
-              <li>Inject the toolbar and runtime UI.</li>
-              <li>Use native <code>contenteditable</code> for text edits.</li>
-              <li>Keep the design close to the minimalist highlighter sketch.</li>
-              <li>Persist through a trusted writer when one exists.</li>
-            </ul>
-          </div>
-        </section>
-
         <section class="section">
-          <h2>Current result</h2>
-          <div class="facts">
-            <div class="fact">
-              <h3>Working loop</h3>
-              <p>
-                Edit mode, highlights, comments, color sampling, undo, and save
-                are usable enough to validate the interaction direction.
-              </p>
-            </div>
-            <div class="fact">
-              <h3>Server answer</h3>
-              <p>
-                A browser can keep a local draft, but source-file writes need a
-                server, app shell, extension permission, or another trusted
-                writer.
-              </p>
-            </div>
-            <div class="fact">
-              <h3>Reference server</h3>
-              <p>
-                The Bun server serves root files and implements one minimal
-                <code>/__hyperedit/save</code> endpoint.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section class="section split">
-          <div>
-            <h2>Frontend contract</h2>
-          </div>
-          <pre><code>&lt;script
-  src="/hyperedit.js"
-  data-root="main"
-  data-save-url="/your-save-endpoint"&gt;&lt;/script&gt;</code></pre>
-        </section>
-
-        <section class="section">
-          <h2>Known issues</h2>
-          <div class="details-list">
-            <details open>
-              <summary>Maintainability</summary>
-              <p>
-                <code>hyperedit.js</code> mixes tool behavior, global input
-                events, state updates, serialization, and UI rendering.
-              </p>
-            </details>
-            <details>
-              <summary>Comment editing</summary>
-              <p>
-                Comment boxes currently live inside the editable root. Keyboard
-                input can split boxes, duplicate nodes, overwrite nearby text,
-                and shift layout after refresh.
-              </p>
-            </details>
-            <details>
-              <summary>Serialization risk</summary>
-              <p>
-                Full-document serialization can persist extension DOM, runtime
-                UI, and other nodes HyperEdit does not own.
-              </p>
-            </details>
-            <details>
-              <summary>Asset sizing</summary>
-              <p>
-                SVGs opened as standalone documents need safe intrinsic sizing
-                because page CSS does not apply there.
-              </p>
-            </details>
-          </div>
-        </section>
-
-        <section class="section">
-          <h2>Tool model</h2>
-          <div class="tool-grid">
-            <details open>
-              <summary>Select</summary>
-              <p>Consumes pointer and selection state. Emits active target state.</p>
-            </details>
-            <details>
-              <summary>Text Edit</summary>
-              <p>
-                Consumes native contenteditable input. Emits content operations
-                for the editable block.
-              </p>
-            </details>
-            <details>
-              <summary>Highlight</summary>
-              <p>
-                Consumes a normalized text range and selected color. Emits an
-                annotation record or semantic marker.
-              </p>
-            </details>
-            <details>
-              <summary>Comment</summary>
-              <p>
-                Consumes a range or annotation id plus isolated overlay input.
-                Emits a comment record.
-              </p>
-            </details>
-            <details>
-              <summary>Color Sample</summary>
-              <p>
-                Consumes EyeDropper output or sampled styles. Emits selected
-                color state.
-              </p>
-            </details>
-            <details>
-              <summary>Save</summary>
-              <p>
-                Consumes dirty HyperEdit-owned state. Emits a structured save
-                request, not arbitrary browser HTML.
-              </p>
-            </details>
-          </div>
-        </section>
-
-        <section class="section">
-          <h2>Save format comparison</h2>
+          <h2>What is left</h2>
           <div class="table-wrap">
             <table class="comparison">
               <thead>
                 <tr>
-                  <th>Option</th>
-                  <th>Strength</th>
-                  <th>Risk</th>
+                  <th>Work</th>
                   <th>Status</th>
+                  <th>Reason</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <th>Operation log</th>
-                  <td>Auditable and rejects unsafe changes server-side.</td>
-                  <td>Needs stable anchors and replay logic.</td>
-                  <td><span class="status-pill next">Candidate</span></td>
+                  <th>Undo and input-event cleanup</th>
+                  <td><span class="status-pill accepted">Done</span></td>
+                  <td>
+                    Typed helpers now own native input gating, root snapshots,
+                    undo stack trimming, saved-root fallback, and restore.
+                  </td>
                 </tr>
                 <tr>
-                  <th>Annotation records</th>
-                  <td>Fits highlights and comments without overlay DOM.</td>
-                  <td>Anchors must survive edits.</td>
-                  <td><span class="status-pill accepted">Preferred</span></td>
+                  <th>Targeted edit boundary</th>
+                  <td><span class="status-pill next">Started</span></td>
+                  <td>
+                    Whole-page editing is removed. The next step is storing
+                    user text edits as durable deltas or edit objects.
+                  </td>
                 </tr>
                 <tr>
-                  <th>Semantic elements</th>
-                  <td>Readable source with clear HyperEdit ownership.</td>
-                  <td>Needs careful contenteditable behavior.</td>
-                  <td><span class="status-pill accepted">Preferred</span></td>
+                  <th>Stored annotation and edit layer</th>
+                  <td><span class="status-pill accepted">Chosen</span></td>
+                  <td>
+                    Annotations and small user edits should be durable objects
+                    attached to DOM elements and stored with the HTML artifact.
+                  </td>
                 </tr>
                 <tr>
-                  <th>Full HTML snapshot</th>
-                  <td>Simple for the current prototype.</td>
-                  <td>Persists arbitrary browser DOM.</td>
-                  <td><span class="status-pill rejected">Prototype only</span></td>
+                  <th>Native module split</th>
+                  <td><span class="status-pill next">Optional</span></td>
+                  <td>
+                    The file now has clearer helper boundaries. Split only if a
+                    next edit proves the single file is slowing safe work.
+                  </td>
+                </tr>
+                <tr>
+                  <th>Serialization hardening</th>
+                  <td><span class="status-pill next">Later</span></td>
+                  <td>
+                    Runtime UI is stripped before save, but the long-term model
+                    should avoid persisting browser DOM HyperEdit does not own.
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
         </section>
 
-        <section class="section">
-          <h2>Shared event layer</h2>
-          <ol>
-            <li>One pointer router dispatches events to the active tool.</li>
-            <li>One selection reader normalizes browser ranges.</li>
-            <li>
-              One keyboard/input controller separates page editing from overlay
-              editing.
-            </li>
-            <li>
-              One save dispatcher builds payloads from HyperEdit-owned state.
-            </li>
-          </ol>
+        <section class="section split">
+          <div>
+            <h2>Next slice</h2>
+          </div>
+          <div>
+            <p>
+              The next remaining work is durable edit deltas. The editor now
+              targets individual blocks for text input, but user text edits
+              still need to be captured as durable objects the agent can
+              reconcile with the HTML source.
+            </p>
+            <ul>
+              <li>Keep browser behavior unchanged unless tests expose a bug.</li>
+              <li>Keep new helpers small, typed, and close to their callers.</li>
+              <li>
+                Validate with <code>bun run check</code> and
+                <code>PORT=61234 bun run test</code>.
+              </li>
+            </ul>
+          </div>
         </section>
 
         <section class="section">
-          <h2>Recommended next phase</h2>
-          <p>
-            Move toward a hybrid of annotation records and semantic inline
-            markers. Keep comment editors and tool UI outside the editable root,
-            save structured HyperEdit artifacts, and let the server reconcile
-            those artifacts with clean source HTML.
-          </p>
+          <h2>Stop points</h2>
+          <div class="notice">
+            <p>
+              Stop and create a focused HTML decision artifact if the work would
+              require a build step, a long-term save-format commitment, moving
+              comment UI out of the editable root, or changing the consumer
+              script contract.
+            </p>
+          </div>
         </section>
       </main>
     </div>
 
-    <script src="./hyperedit.js" data-root="main"></script>
+    <script
+      src="./hyperedit.js"
+      data-root="main"
+      data-save-url="/__hyperedit/save"
+    ></script>
   </body>
 </html>

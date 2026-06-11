@@ -1,3 +1,5 @@
+// @ts-check
+
 /*
   HyperEdit
 
@@ -7,14 +9,134 @@
   The optional data-save-url hook is backend-agnostic. When it is present, the
   Save button POSTs { pathname, title, html, source, updatedAt } to that URL.
 */
+
+/**
+ * @typedef {"select" | "highlight" | "comment"} ActiveTool
+ */
+
+/**
+ * @typedef {"edit" | "save" | "undo" | "annotations" | "sample" | ActiveTool} ToolbarTool
+ */
+
+/**
+ * @typedef {Object} EditorOptions
+ * @property {string} rootSelector
+ * @property {boolean} autoStart
+ * @property {string} saveUrl
+ * @property {string} storageKey
+ */
+
+/**
+ * @typedef {Object} EditorColor
+ * @property {string} name
+ * @property {string} solid
+ * @property {string} pale
+ */
+
+/**
+ * @typedef {Object} CommentDrag
+ * @property {HTMLElement} box
+ * @property {number} pointerId
+ * @property {number} startX
+ * @property {number} startY
+ * @property {number} startLeft
+ * @property {number} startTop
+ * @property {boolean} moved
+ * @property {boolean} snapshotTaken
+ */
+
+/**
+ * @typedef {Object} EditorState
+ * @property {boolean} editing
+ * @property {ActiveTool} tool
+ * @property {number} colorIndex
+ * @property {boolean} dirty
+ * @property {HTMLElement[]} editables
+ * @property {HTMLElement | null} activeElement
+ * @property {boolean} sampling
+ * @property {number} saveTimer
+ * @property {string[]} undoStack
+ * @property {number} maxUndo
+ * @property {string} lastSavedRootHtml
+ * @property {string} previousSavedRootHtml
+ * @property {CommentDrag | null} commentDrag
+ */
+
+/**
+ * @typedef {Object} ToolbarRefs
+ * @property {HTMLElement | null} rail
+ * @property {HTMLElement | null} status
+ * @property {HTMLElement | null} highlightsPanel
+ * @property {HTMLElement | null} highlightsList
+ * @property {HTMLButtonElement[]} buttons
+ * @property {HTMLButtonElement[]} swatches
+ */
+
+/**
+ * @typedef {Object} SavePayload
+ * @property {string} pathname
+ * @property {string} title
+ * @property {string} html
+ * @property {"hyperedit"} source
+ * @property {string} updatedAt
+ */
+
+/**
+ * @typedef {Object} HyperEditApi
+ * @property {() => void} destroy
+ * @property {() => void} enable
+ * @property {() => void} disable
+ * @property {() => Promise<boolean>} save
+ * @property {() => void} undo
+ * @property {() => string} serialize
+ * @property {() => void} refresh
+ * @property {(nextOptions?: Partial<EditorOptions>) => void} configure
+ */
+
+/**
+ * @typedef {Object} EyeDropperResult
+ * @property {string} sRGBHex
+ */
+
+/**
+ * @typedef {Object} EyeDropperInstance
+ * @property {() => Promise<EyeDropperResult>} open
+ */
+
+/**
+ * @typedef {new () => EyeDropperInstance} EyeDropperConstructor
+ */
+
+/**
+ * @typedef {Window & typeof globalThis & {
+ *   HyperEdit?: HyperEditApi,
+ *   EyeDropper?: EyeDropperConstructor
+ * }} EditorWindow
+ */
+
+/**
+ * @typedef {Object} CssRgbColor
+ * @property {number} red
+ * @property {number} green
+ * @property {number} blue
+ * @property {number} alpha
+ */
 (function () {
   "use strict";
 
-  if (window.HyperEdit && window.HyperEdit.destroy) {
+  /** @type {EditorWindow} */
+  var editorWindow = window;
+
+  if (editorWindow.HyperEdit) {
     return;
   }
 
-  var script = document.currentScript;
+  /** @type {HTMLScriptElement | null} */
+  var script =
+    document.currentScript instanceof HTMLScriptElement
+      ? document.currentScript
+      : null;
+  /** @type {EditorOptions} */
   var options = {
     rootSelector: (script && script.dataset.root) || "body",
     autoStart: !!(script && script.dataset.autostart === "true"),
@@ -24,12 +146,14 @@
       "hyperedit:" + location.origin + location.pathname,
   };
 
+  /** @type {EditorColor[]} */
   var colors = [
     { name: "red", solid: "#e03131", pale: "rgba(224, 49, 49, 0.13)" },
     { name: "blue", solid: "#228be6", pale: "rgba(34, 139, 230, 0.13)" },
     { name: "ink", solid: "#1e1e1e", pale: "rgba(30, 30, 30, 0.1)" },
   ];
 
+  /** @type {EditorState} */
   var state = {
     editing: false,
     tool: "select",
@@ -46,11 +170,41 @@
     commentDrag: null,
   };
 
+  /** @type {HTMLElement | null} */
   var host = null;
+  /** @type {ShadowRoot | null} */
   var shadow = null;
-  var toolbar = {};
+  /** @type {ToolbarRefs} */
+  var toolbar = {
+    rail: null,
+    status: null,
+    highlightsPanel: null,
+    highlightsList: null,
+    buttons: [],
+    swatches: [],
+  };
+  /** @type {HTMLStyleElement | null} */
   var globalStyle = null;
+  /** @type {MutationObserver | null} */
   var observer = null;
+  var highlightSelector = "mark[data-hx-highlight]";
+  var commentAnchorSelector = "[data-hx-comment-anchor]";
+  var annotationSelector = highlightSelector + ", " + commentAnchorSelector;
+  var commentBoxSelector = "[data-hx-comment-box]";
+  var editorRuntimeSelector = "[data-hx-editor-ui], #hyperedit-page-style";
+  var editableTargetSelector =
+    "p, h1, h2, h3, h4, h5, h6, li, td, th, blockquote, figcaption, pre";
+  var editableClass = "hx-editor-editable";
+  var activeClass = "hx-editor-active";
+  var commentDraggingClass = "hx-comment-dragging";
+  var editableCloneSelector = "." + editableClass;
+  var panelRowSelector = "[data-highlight-id]";
+  var panelFocusAttribute = "data-highlight-focus";
+  var panelCommentAttribute = "data-highlight-comment";
+  var panelDeleteAttribute = "data-highlight-delete";
+  var panelFocusSelector = "[" + panelFocusAttribute + "]";
+  var panelCommentSelector = "[" + panelCommentAttribute + "]";
+  var panelDeleteSelector = "[" + panelDeleteAttribute + "]";
 
   function init() {
     injectPageStyle();
@@ -79,8 +233,9 @@
   }
 
   function injectPageStyle() {
-    if (document.getElementById("hyperedit-page-style")) {
-      globalStyle = document.getElementById("hyperedit-page-style");
+    var existingStyle = document.getElementById("hyperedit-page-style");
+    if (existingStyle instanceof HTMLStyleElement) {
+      globalStyle = existingStyle;
       return;
     }
 
@@ -419,7 +574,10 @@
 
     toolbar.buttons.forEach(function (button) {
       button.addEventListener("click", function () {
-        handleTool(button.dataset.tool);
+        var tool = button.dataset.tool;
+        if (isToolbarTool(tool)) {
+          handleTool(tool);
+        }
       });
     });
 
@@ -439,6 +597,11 @@
       .addEventListener("click", removeAllAnnotations);
   }
 
+  /**
+   * @param {ToolbarTool} tool
+   * @param {string} label
+   * @param {string} icon
+   */
   function buttonHtml(tool, label, icon) {
     return (
       "<button class='icon-button' type='button' data-tool='" +
@@ -450,6 +613,23 @@
       "'>" +
       icon +
       "</button>"
+    );
+  }
+
+  /**
+   * @param {string | undefined} tool
+   * @returns {tool is ToolbarTool}
+   */
+  function isToolbarTool(tool) {
+    return (
+      tool === "edit" ||
+      tool === "save" ||
+      tool === "undo" ||
+      tool === "annotations" ||
+      tool === "sample" ||
+      tool === "select" ||
+      tool === "highlight" ||
+      tool === "comment"
     );
   }
 
@@ -545,6 +725,9 @@
     );
   }
 
+  /**
+   * @param {ToolbarTool} tool
+   */
   function handleTool(tool) {
     if (tool === "edit") {
       setEditing(!state.editing);
@@ -575,7 +758,9 @@
       return;
     }
 
-    state.tool = tool;
+    if (tool === "select" || tool === "highlight" || tool === "comment") {
+      state.tool = tool;
+    }
     updateToolbar();
   }
 
@@ -593,12 +778,15 @@
     window.addEventListener("scroll", repositionOverlays, true);
   }
 
+  /**
+   * @param {MouseEvent} event
+   */
   function handleDoubleClick(event) {
     if (!state.editing || isToolbarEvent(event)) {
       return;
     }
 
-    var editable = findEditable(event.target);
+    var editable = findEditableTarget(event.target);
     if (!editable) {
       return;
     }
@@ -608,6 +796,9 @@
     updateToolbar();
   }
 
+  /**
+   * @param {FocusEvent} event
+   */
   function handleFocusIn(event) {
     var editable = findEditable(event.target);
     if (!editable) {
@@ -617,42 +808,73 @@
     setActiveElement(editable);
   }
 
+  /**
+   * @param {FocusEvent} event
+   */
   function handleFocusOut(event) {
     if (event.target === state.activeElement) {
       setActiveElement(null);
     }
   }
 
+  /**
+   * @param {InputEvent} event
+   */
   function handleBeforeInput(event) {
-    if (
-      !state.editing ||
-      (!findEditable(event.target) && !findCommentBox(event.target))
-    ) {
+    if (!shouldRecordInputHistory(event)) {
       return;
     }
 
     pushUndoSnapshot();
   }
 
+  /**
+   * @param {Event} event
+   */
   function handleInput(event) {
-    if (!state.editing) {
+    if (!shouldHandleEditableInput(event)) {
       return;
     }
 
-    if (
-      findEditable(event.target) ||
-      findCommentBox(event.target) ||
-      (event.target instanceof Element &&
-        event.target.closest(
-          "mark[data-hx-highlight], [data-hx-comment-anchor]"
-        ))
-    ) {
-      syncAllCommentBoxesToAnchors();
-      markDirty();
-      renderHighlightsPanel();
-    }
+    syncAllCommentBoxesToAnchors();
+    markDirty();
+    renderHighlightsPanel();
   }
 
+  /**
+   * @param {InputEvent} event
+   */
+  function shouldRecordInputHistory(event) {
+    return state.editing && isUndoableInputTarget(event.target);
+  }
+
+  /**
+   * @param {Event} event
+   */
+  function shouldHandleEditableInput(event) {
+    return state.editing && isEditableInputTarget(event.target);
+  }
+
+  /**
+   * @param {EventTarget | null} target
+   */
+  function isUndoableInputTarget(target) {
+    return !!(findEditable(target) || findCommentBox(target));
+  }
+
+  /**
+   * @param {EventTarget | null} target
+   */
+  function isEditableInputTarget(target) {
+    return (
+      isUndoableInputTarget(target) ||
+      !!closestHTMLElement(target, annotationSelector)
+    );
+  }
+
+  /**
+   * @param {MouseEvent} event
+   */
   function handleMouseUp(event) {
     if (
       !state.editing ||
@@ -672,6 +894,9 @@
     }, 0);
   }
 
+  /**
+   * @param {PointerEvent} event
+   */
   function handlePointerDown(event) {
     if (!state.editing || isToolbarEvent(event)) {
       return;
@@ -699,6 +924,9 @@
     window.addEventListener("pointerup", handleCommentDragEnd, true);
   }
 
+  /**
+   * @param {PointerEvent} event
+   */
   function handleCommentDragMove(event) {
     var drag = state.commentDrag;
     if (!drag || event.pointerId !== drag.pointerId) {
@@ -723,6 +951,9 @@
     event.preventDefault();
   }
 
+  /**
+   * @param {PointerEvent} event
+   */
   function handleCommentDragEnd(event) {
     var drag = state.commentDrag;
     if (!drag || event.pointerId !== drag.pointerId) {
@@ -740,6 +971,9 @@
     state.commentDrag = null;
   }
 
+  /**
+   * @param {MouseEvent} event
+   */
   function handleDocumentClick(event) {
     if (isToolbarEvent(event)) {
       return;
@@ -748,7 +982,9 @@
     if (state.sampling) {
       event.preventDefault();
       event.stopPropagation();
-      sampleColor(event.target);
+      if (event.target instanceof Element) {
+        sampleColor(event.target);
+      }
       return;
     }
 
@@ -756,13 +992,11 @@
       return;
     }
 
-    var annotation =
-      event.target.closest &&
-      event.target.closest("mark[data-hx-highlight], [data-hx-comment-anchor]");
+    var annotation = closestHTMLElement(event.target, annotationSelector);
     if (annotation) {
       var annotationId = annotation.dataset.hxId;
       if (
-        annotation.matches("[data-hx-comment-anchor]") ||
+        isCommentAnchor(annotation) ||
         state.tool === "comment" ||
         (annotationId && findCommentBoxById(annotationId))
       ) {
@@ -773,6 +1007,9 @@
 
   }
 
+  /**
+   * @param {KeyboardEvent} event
+   */
   function handleKeydown(event) {
     var activeCommentBox = findCommentBox(document.activeElement);
     if (
@@ -804,47 +1041,153 @@
     }
   }
 
+  /**
+   * @param {Event} event
+   */
   function isToolbarEvent(event) {
     return event.composedPath && event.composedPath().indexOf(host) !== -1;
   }
 
+  /**
+   * @param {EventTarget | null} target
+   * @param {string} selector
+   * @returns {HTMLElement | null}
+   */
+  function closestHTMLElement(target, selector) {
+    if (!(target instanceof Element)) {
+      return null;
+    }
+
+    var element = target.closest(selector);
+    return element instanceof HTMLElement ? element : null;
+  }
+
+  /**
+   * @param {ParentNode} root
+   * @param {string} selector
+   * @returns {HTMLElement | null}
+   */
+  function queryHTMLElement(root, selector) {
+    var element = root.querySelector(selector);
+    return element instanceof HTMLElement ? element : null;
+  }
+
+  /**
+   * @param {HTMLElement} element
+   */
+  function isCommentAnchor(element) {
+    return element.matches(commentAnchorSelector);
+  }
+
+  /**
+   * @param {string} id
+   */
+  function getCommentBoxSelectorById(id) {
+    return commentBoxSelector + "[data-hx-id='" + cssEscape(id) + "']";
+  }
+
+  /**
+   * @param {string} id
+   */
+  function getAnnotationSelectorById(id) {
+    var escapedId = cssEscape(id);
+    return (
+      highlightSelector +
+      "[data-hx-id='" +
+      escapedId +
+      "'], " +
+      commentAnchorSelector +
+      "[data-hx-id='" +
+      escapedId +
+      "']"
+    );
+  }
+
+  /**
+   * @param {HTMLElement} button
+   * @returns {HTMLElement | null}
+   */
+  function findPanelRow(button) {
+    return closestHTMLElement(button, panelRowSelector);
+  }
+
+  /**
+   * @param {HTMLElement} button
+   * @returns {HTMLElement | null}
+   */
+  function findPanelAnnotation(button) {
+    var row = findPanelRow(button);
+    return row ? findAnnotationById(row.dataset.highlightId) : null;
+  }
+
   function refreshEditables() {
-    var root = getRoot();
-    state.editables = root instanceof HTMLElement ? [root] : [];
+    state.editables =
+      state.activeElement && getRoot().contains(state.activeElement)
+        ? [state.activeElement]
+        : [];
 
     if (state.editing) {
       state.editables.forEach(enableEditable);
     }
   }
 
+  /**
+   * @param {EventTarget | null} target
+   * @returns {HTMLElement | null}
+   */
   function findEditable(target) {
     if (!(target instanceof Element)) {
       return null;
     }
 
-    var editable = target.closest(".hx-editor-editable");
-    if (!editable || !getRoot().contains(editable)) {
+    var editable = target.closest(editableCloneSelector);
+    if (!(editable instanceof HTMLElement) || !getRoot().contains(editable)) {
       return null;
     }
 
     return editable;
   }
 
+  /**
+   * @param {EventTarget | null} target
+   * @returns {HTMLElement | null}
+   */
+  function findEditableTarget(target) {
+    if (!(target instanceof Element) || findCommentBox(target)) {
+      return null;
+    }
+
+    var editable = target.closest(editableTargetSelector);
+    if (!(editable instanceof HTMLElement) || !getRoot().contains(editable)) {
+      return null;
+    }
+
+    if (editable.closest("[data-hx-ignore]")) {
+      return null;
+    }
+
+    return editable;
+  }
+
+  /**
+   * @param {boolean} nextEditing
+   */
   function setEditing(nextEditing) {
     state.editing = !!nextEditing;
     state.tool = state.editing ? "select" : "select";
     closeCommentPopover();
     closeHighlightsPanel();
     stopSampling();
-    refreshEditables();
-
     document.documentElement.classList.toggle("hx-editor-on", state.editing);
 
     if (state.editing) {
-      state.editables.forEach(enableEditable);
+      refreshEditables();
+      setCommentBoxesEditable(true);
     } else {
       cleanupEditorState();
       setActiveElement(null);
+      state.editables = [];
+      setCommentBoxesEditable(false);
     }
 
     updateToolbar();
@@ -854,6 +1197,9 @@
     state.editables.forEach(disableEditable);
   }
 
+  /**
+   * @param {HTMLElement} element
+   */
   function enableEditable(element) {
     if (element.dataset.hxPrevContenteditable === undefined) {
       element.dataset.hxPrevContenteditable = element.hasAttribute("contenteditable")
@@ -870,22 +1216,30 @@
     element.classList.add("hx-editor-editable");
     element.setAttribute("contenteditable", "true");
     element.setAttribute("spellcheck", "true");
-    setCommentBoxesEditable(true);
   }
 
+  /**
+   * @param {HTMLElement} element
+   */
   function disableEditable(element) {
     element.classList.remove("hx-editor-editable", "hx-editor-active");
     restoreAttribute(element, "contenteditable", element.dataset.hxPrevContenteditable);
     restoreAttribute(element, "spellcheck", element.dataset.hxPrevSpellcheck);
     delete element.dataset.hxPrevContenteditable;
     delete element.dataset.hxPrevSpellcheck;
-    setCommentBoxesEditable(false);
   }
 
+  /**
+   * @param {boolean} enabled
+   */
   function setCommentBoxesEditable(enabled) {
     Array.prototype.forEach.call(
-      getRoot().querySelectorAll("[data-hx-comment-box]"),
-      function (box) {
+      getRoot().querySelectorAll(commentBoxSelector),
+      function (/** @type {Element} */ box) {
+        if (!(box instanceof HTMLElement)) {
+          return;
+        }
+
         if (enabled) {
           box.setAttribute("contenteditable", "true");
           box.setAttribute("spellcheck", "true");
@@ -897,6 +1251,11 @@
     );
   }
 
+  /**
+   * @param {HTMLElement} element
+   * @param {string} attribute
+   * @param {string | undefined} value
+   */
   function restoreAttribute(element, attribute, value) {
     if (value === undefined || value === "__missing__") {
       element.removeAttribute(attribute);
@@ -906,12 +1265,25 @@
     element.setAttribute(attribute, value);
   }
 
+  /**
+   * @param {HTMLElement} element
+   */
   function focusEditable(element) {
+    state.editables.forEach(function (editable) {
+      if (editable !== element) {
+        disableEditable(editable);
+      }
+    });
+
     enableEditable(element);
+    state.editables = [element];
     element.focus({ preventScroll: true });
     setActiveElement(element);
   }
 
+  /**
+   * @param {HTMLElement | null} element
+   */
   function setActiveElement(element) {
     if (state.activeElement) {
       state.activeElement.classList.remove("hx-editor-active");
@@ -924,6 +1296,9 @@
     }
   }
 
+  /**
+   * @param {boolean} shouldComment
+   */
   function applySelectionHighlight(shouldComment) {
     var selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
@@ -990,6 +1365,9 @@
     } catch (error) {}
   }
 
+  /**
+   * @param {HTMLElement} annotation
+   */
   function openCommentPopover(annotation) {
     createOrFocusCommentBox(annotation);
   }
@@ -997,6 +1375,9 @@
   function closeCommentPopover() {
   }
 
+  /**
+   * @param {HTMLElement} annotation
+   */
   function createOrFocusCommentBox(annotation) {
     var id = ensureAnnotationId(annotation);
     var box = findCommentBoxById(id);
@@ -1022,6 +1403,10 @@
     renderHighlightsPanel();
   }
 
+  /**
+   * @param {HTMLElement} box
+   * @param {HTMLElement} annotation
+   */
   function positionNewCommentBox(box, annotation) {
     var rootRect = getRoot().getBoundingClientRect();
     var rect = annotation.getBoundingClientRect();
@@ -1037,21 +1422,34 @@
     box.style.top = Math.max(0, top) + "px";
   }
 
+  /**
+   * @param {EventTarget | null} target
+   * @returns {HTMLElement | null}
+   */
   function findCommentBox(target) {
     if (!(target instanceof Element)) {
       return null;
     }
 
-    return target.closest("[data-hx-comment-box]");
+    return closestHTMLElement(target, commentBoxSelector);
   }
 
+  /**
+   * @param {string} id
+   * @returns {HTMLElement | null}
+   */
   function findCommentBoxById(id) {
-    return getRoot().querySelector(
-      "[data-hx-comment-box][data-hx-id='" + cssEscape(id) + "']"
-    );
+    return queryHTMLElement(getRoot(), getCommentBoxSelectorById(id));
   }
 
+  /**
+   * @param {Element} box
+   */
   function syncCommentBoxToAnchor(box) {
+    if (!(box instanceof HTMLElement)) {
+      return;
+    }
+
     var annotation = findAnnotationById(box.dataset.hxId);
     if (!annotation) {
       return;
@@ -1062,11 +1460,14 @@
 
   function syncAllCommentBoxesToAnchors() {
     Array.prototype.forEach.call(
-      getRoot().querySelectorAll("[data-hx-comment-box]"),
+      getRoot().querySelectorAll(commentBoxSelector),
       syncCommentBoxToAnchor
     );
   }
 
+  /**
+   * @param {HTMLElement} element
+   */
   function placeCaretAtEnd(element) {
     var range = document.createRange();
     range.selectNodeContents(element);
@@ -1120,83 +1521,123 @@
 
     var annotations = getAnnotations();
     if (!annotations.length) {
-      toolbar.highlightsList.innerHTML =
-        "<p class='empty-state'>No annotations in this document.</p>";
+      renderEmptyHighlightsPanel(toolbar.highlightsList);
       return;
     }
 
-    toolbar.highlightsList.innerHTML = annotations
-      .map(function (annotation) {
-        var id = ensureAnnotationId(annotation);
-        var color = getAnnotationColor(annotation);
-        var comment = annotation.dataset.hxComment || "";
-        var typeLabel = annotation.matches("[data-hx-comment-anchor]")
-          ? "Comment"
-          : "Highlight";
-        return (
-          "<div class='highlight-row' data-highlight-id='" +
-          escapeHtml(id) +
-          "'>" +
-          "<span class='highlight-dot' style='background:" +
-          escapeHtml(color.solid) +
-          "'></span>" +
-          "<div>" +
-          "<p class='highlight-text'>" +
-          escapeHtml(typeLabel + ": " + trimSnippet(annotation.textContent, 84)) +
-          "</p>" +
-          (comment
-            ? "<p class='highlight-comment'>" +
-              escapeHtml(trimSnippet(comment, 96)) +
-              "</p>"
-            : "") +
-          "</div>" +
-          "<div class='row-actions'>" +
-          "<button type='button' data-highlight-focus title='Find highlight' aria-label='Find highlight'>" +
-          iconLocate() +
-          "</button>" +
-          "<button type='button' data-highlight-comment title='Comment' aria-label='Comment'>" +
-          iconPen() +
-          "</button>" +
-          "<button type='button' data-highlight-delete title='Remove highlight' aria-label='Remove highlight'>" +
-          iconTrash() +
-          "</button>" +
-          "</div>" +
-          "</div>"
-        );
-      })
-      .join("");
+    renderAnnotationRows(toolbar.highlightsList, annotations);
+    bindAnnotationPanelActions(toolbar.highlightsList);
+  }
 
-    Array.prototype.forEach.call(
-      toolbar.highlightsList.querySelectorAll("[data-highlight-focus]"),
-      function (button) {
-        button.addEventListener("click", function () {
-          var annotation = findAnnotationById(button.closest("[data-highlight-id]").dataset.highlightId);
-          if (annotation) {
-            focusAnnotation(annotation);
-          }
-        });
-      }
+  /**
+   * @param {HTMLElement} list
+   */
+  function renderEmptyHighlightsPanel(list) {
+    list.innerHTML = "<p class='empty-state'>No annotations in this document.</p>";
+  }
+
+  /**
+   * @param {HTMLElement} list
+   * @param {HTMLElement[]} annotations
+   */
+  function renderAnnotationRows(list, annotations) {
+    list.innerHTML = annotations.map(renderAnnotationRow).join("");
+  }
+
+  /**
+   * @param {HTMLElement} annotation
+   */
+  function renderAnnotationRow(annotation) {
+    var id = ensureAnnotationId(annotation);
+    var color = getAnnotationColor(annotation);
+    var comment = annotation.dataset.hxComment || "";
+    var typeLabel = isCommentAnchor(annotation) ? "Comment" : "Highlight";
+    return (
+      "<div class='highlight-row' data-highlight-id='" +
+      escapeHtml(id) +
+      "'>" +
+      "<span class='highlight-dot' style='background:" +
+      escapeHtml(color.solid) +
+      "'></span>" +
+      "<div>" +
+      "<p class='highlight-text'>" +
+      escapeHtml(typeLabel + ": " + trimSnippet(annotation.textContent, 84)) +
+      "</p>" +
+      renderAnnotationComment(comment) +
+      "</div>" +
+      "<div class='row-actions'>" +
+      renderPanelActionButton(
+        panelFocusAttribute,
+        "Find highlight",
+        iconLocate()
+      ) +
+      renderPanelActionButton(panelCommentAttribute, "Comment", iconPen()) +
+      renderPanelActionButton(
+        panelDeleteAttribute,
+        "Remove highlight",
+        iconTrash()
+      ) +
+      "</div>" +
+      "</div>"
     );
+  }
 
-    Array.prototype.forEach.call(
-      toolbar.highlightsList.querySelectorAll("[data-highlight-comment]"),
-      function (button) {
-        button.addEventListener("click", function () {
-          var annotation = findAnnotationById(button.closest("[data-highlight-id]").dataset.highlightId);
-          if (annotation) {
-            openCommentPopover(annotation);
-          }
-        });
-      }
+  /**
+   * @param {string} comment
+   */
+  function renderAnnotationComment(comment) {
+    return comment
+      ? "<p class='highlight-comment'>" +
+          escapeHtml(trimSnippet(comment, 96)) +
+          "</p>"
+      : "";
+  }
+
+  /**
+   * @param {string} attribute
+   * @param {string} label
+   * @param {string} icon
+   */
+  function renderPanelActionButton(attribute, label, icon) {
+    return (
+      "<button type='button' " +
+      attribute +
+      " title='" +
+      label +
+      "' aria-label='" +
+      label +
+      "'>" +
+      icon +
+      "</button>"
     );
+  }
 
+  /**
+   * @param {HTMLElement} list
+   */
+  function bindAnnotationPanelActions(list) {
+    bindAnnotationAction(list, panelFocusSelector, focusAnnotation);
+    bindAnnotationAction(list, panelCommentSelector, openCommentPopover);
+    bindAnnotationAction(list, panelDeleteSelector, removeAnnotation);
+  }
+
+  /**
+   * @param {HTMLElement} list
+   * @param {string} selector
+   * @param {(annotation: HTMLElement) => void} action
+   */
+  function bindAnnotationAction(list, selector, action) {
     Array.prototype.forEach.call(
-      toolbar.highlightsList.querySelectorAll("[data-highlight-delete]"),
-      function (button) {
-        button.addEventListener("click", function () {
-          var annotation = findAnnotationById(button.closest("[data-highlight-id]").dataset.highlightId);
+      list.querySelectorAll(selector),
+      function (/** @type {Element} */ element) {
+        if (!(element instanceof HTMLElement)) {
+          return;
+        }
+
+        element.addEventListener("click", function () {
+          var annotation = findPanelAnnotation(element);
           if (annotation) {
-            removeAnnotation(annotation);
+            action(annotation);
           }
         });
       }
@@ -1205,18 +1646,19 @@
 
   function getHighlights() {
     return Array.prototype.slice.call(
-      getRoot().querySelectorAll("mark[data-hx-highlight]")
+      getRoot().querySelectorAll(highlightSelector)
     );
   }
 
   function getAnnotations() {
     return Array.prototype.slice.call(
-      getRoot().querySelectorAll(
-        "mark[data-hx-highlight], [data-hx-comment-anchor]"
-      )
+      getRoot().querySelectorAll(annotationSelector)
     );
   }
 
+  /**
+   * @param {HTMLElement} annotation
+   */
   function ensureAnnotationId(annotation) {
     if (!annotation.dataset.hxId) {
       annotation.dataset.hxId = createHighlightId();
@@ -1234,21 +1676,25 @@
     );
   }
 
+  /**
+   * @param {string} id
+   * @returns {HTMLElement | null}
+   */
   function findAnnotationById(id) {
-    return getRoot().querySelector(
-      "mark[data-hx-highlight][data-hx-id='" +
-        cssEscape(id) +
-        "'], [data-hx-comment-anchor][data-hx-id='" +
-        cssEscape(id) +
-        "']"
-    );
+    return queryHTMLElement(getRoot(), getAnnotationSelectorById(id));
   }
 
+  /**
+   * @param {HTMLElement} annotation
+   */
   function focusAnnotation(annotation) {
     annotation.scrollIntoView({ block: "center", behavior: "smooth" });
     openCommentPopover(annotation);
   }
 
+  /**
+   * @param {HTMLElement} annotation
+   */
   function removeAnnotation(annotation) {
     pushUndoSnapshot();
     var box = findCommentBoxById(annotation.dataset.hxId);
@@ -1274,7 +1720,7 @@
     }
 
     pushUndoSnapshot();
-    annotations.forEach(function (annotation) {
+    annotations.forEach(function (/** @type {HTMLElement} */ annotation) {
       var box = findCommentBoxById(annotation.dataset.hxId);
       if (box) {
         box.remove();
@@ -1293,8 +1739,12 @@
     renderHighlightsPanel();
   }
 
+  /**
+   * @param {HTMLElement} annotation
+   * @returns {{ solid: string, pale?: string }}
+   */
   function getAnnotationColor(annotation) {
-    if (annotation.matches("[data-hx-comment-anchor]")) {
+    if (isCommentAnchor(annotation)) {
       return { solid: "#15aabf" };
     }
 
@@ -1306,6 +1756,10 @@
     );
   }
 
+  /**
+   * @param {unknown} value
+   * @param {number} length
+   */
   function trimSnippet(value, length) {
     var text = String(value || "").replace(/\s+/g, " ").trim();
     if (text.length <= length) {
@@ -1315,6 +1769,9 @@
     return text.slice(0, Math.max(0, length - 1)).trim() + "…";
   }
 
+  /**
+   * @param {unknown} value
+   */
   function escapeHtml(value) {
     return String(value)
       .replace(/&/g, "&amp;")
@@ -1324,6 +1781,9 @@
       .replace(/'/g, "&#39;");
   }
 
+  /**
+   * @param {string} value
+   */
   function cssEscape(value) {
     if (window.CSS && window.CSS.escape) {
       return window.CSS.escape(value);
@@ -1337,8 +1797,8 @@
   }
 
   function startSampling() {
-    if (window.EyeDropper) {
-      var eyeDropper = new window.EyeDropper();
+    if (editorWindow.EyeDropper) {
+      var eyeDropper = new editorWindow.EyeDropper();
       eyeDropper
         .open()
         .then(function (result) {
@@ -1361,6 +1821,9 @@
     updateToolbar();
   }
 
+  /**
+   * @param {Element} target
+   */
   function sampleColor(target) {
     var styles = window.getComputedStyle(target);
     var sampled = rgbaToHex(styles.backgroundColor);
@@ -1376,6 +1839,9 @@
     stopSampling();
   }
 
+  /**
+   * @param {string} hex
+   */
   function setSampledColor(hex) {
     colors[state.colorIndex] = {
       name: "sampled",
@@ -1387,42 +1853,24 @@
     updateToolbar();
   }
 
+  /**
+   * @param {string} value
+   */
   function rgbaToHex(value) {
-    var match = String(value).match(/rgba?\(([^)]+)\)/);
-    if (!match) {
+    var color = parseCssRgbColor(value);
+    if (!color) {
       return "";
     }
 
-    var parts = match[1].split(",").map(function (part) {
-      return part.trim();
-    });
-    var alpha = parts[3] === undefined ? 1 : Number(parts[3]);
-    if (alpha === 0) {
-      return "";
-    }
-
-    return (
-      "#" +
-      parts
-        .slice(0, 3)
-        .map(function (part) {
-          var number = Math.max(0, Math.min(255, parseInt(part, 10)));
-          return number.toString(16).padStart(2, "0");
-        })
-        .join("")
-    );
+    return "#" + [color.red, color.green, color.blue].map(toHexByte).join("");
   }
 
+  /**
+   * @param {string} hex
+   * @param {number} alpha
+   */
   function hexToRgba(hex, alpha) {
-    var normalized = String(hex).replace("#", "");
-    if (normalized.length === 3) {
-      normalized = normalized
-        .split("")
-        .map(function (part) {
-          return part + part;
-        })
-        .join("");
-    }
+    var normalized = normalizeHexBody(hex);
 
     var red = parseInt(normalized.slice(0, 2), 16);
     var green = parseInt(normalized.slice(2, 4), 16);
@@ -1430,6 +1878,66 @@
     return "rgba(" + red + ", " + green + ", " + blue + ", " + alpha + ")";
   }
 
+  /**
+   * @param {string} value
+   * @returns {CssRgbColor | null}
+   */
+  function parseCssRgbColor(value) {
+    var match = String(value).match(/rgba?\(([^)]+)\)/);
+    if (!match) {
+      return null;
+    }
+
+    var parts = match[1].split(",").map(function (part) {
+      return part.trim();
+    });
+    var alpha = parts[3] === undefined ? 1 : Number(parts[3]);
+    if (alpha === 0) {
+      return null;
+    }
+
+    return {
+      red: clampColorChannel(parts[0]),
+      green: clampColorChannel(parts[1]),
+      blue: clampColorChannel(parts[2]),
+      alpha: alpha,
+    };
+  }
+
+  /**
+   * @param {string | undefined} value
+   */
+  function clampColorChannel(value) {
+    return Math.max(0, Math.min(255, parseInt(String(value), 10)));
+  }
+
+  /**
+   * @param {number} value
+   */
+  function toHexByte(value) {
+    return value.toString(16).padStart(2, "0");
+  }
+
+  /**
+   * @param {string} hex
+   */
+  function normalizeHexBody(hex) {
+    var normalized = String(hex).replace("#", "");
+    if (normalized.length === 3) {
+      return normalized
+        .split("")
+        .map(function (part) {
+          return part + part;
+        })
+        .join("");
+    }
+
+    return normalized;
+  }
+
+  /**
+   * @param {string} text
+   */
   function copyText(text) {
     if (!navigator.clipboard || !navigator.clipboard.writeText) {
       return;
@@ -1439,41 +1947,90 @@
   }
 
   function pushUndoSnapshot() {
-    var root = getRoot();
-    if (!(root instanceof HTMLElement)) {
+    var html = captureRootHtmlSnapshot();
+    if (html === null || isDuplicateUndoSnapshot(html)) {
       return;
     }
 
-    var html = root.innerHTML;
-    if (state.undoStack[state.undoStack.length - 1] === html) {
-      return;
-    }
-
-    state.undoStack.push(html);
-    if (state.undoStack.length > state.maxUndo) {
-      state.undoStack.shift();
-    }
-
+    pushUndoEntry(html);
     updateToolbar();
   }
 
   function undoLastChange() {
-    var root = getRoot();
-    var previous = state.undoStack.pop();
+    var previous = popUndoEntry();
 
-    if (previous === undefined && state.previousSavedRootHtml) {
-      previous = state.previousSavedRootHtml;
-      state.previousSavedRootHtml = "";
-    }
-
-    if (previous === undefined || !(root instanceof HTMLElement)) {
+    if (previous === undefined || !restoreRootHtmlSnapshot(previous)) {
       return;
     }
 
-    root.innerHTML = previous;
     closeCommentPopover();
     renderHighlightsPanel();
     markDirty();
+  }
+
+  /**
+   * @returns {string | null}
+   */
+  function captureRootHtmlSnapshot() {
+    var root = getRoot();
+    return root instanceof HTMLElement ? root.innerHTML : null;
+  }
+
+  /**
+   * @param {string} html
+   */
+  function isDuplicateUndoSnapshot(html) {
+    return state.undoStack[state.undoStack.length - 1] === html;
+  }
+
+  /**
+   * @param {string} html
+   */
+  function pushUndoEntry(html) {
+    state.undoStack.push(html);
+    trimUndoStack();
+  }
+
+  function trimUndoStack() {
+    if (state.undoStack.length > state.maxUndo) {
+      state.undoStack.shift();
+    }
+  }
+
+  function popUndoEntry() {
+    var previous = state.undoStack.pop();
+    if (previous !== undefined) {
+      return previous;
+    }
+
+    return consumePreviousSavedRootHtml();
+  }
+
+  function consumePreviousSavedRootHtml() {
+    if (!state.previousSavedRootHtml) {
+      return undefined;
+    }
+
+    var html = state.previousSavedRootHtml;
+    state.previousSavedRootHtml = "";
+    return html;
+  }
+
+  /**
+   * @param {string} html
+   */
+  function restoreRootHtmlSnapshot(html) {
+    var root = getRoot();
+    if (!(root instanceof HTMLElement)) {
+      return false;
+    }
+
+    root.innerHTML = html;
+    return true;
+  }
+
+  function hasUndoHistory() {
+    return state.undoStack.length > 0 || !!state.previousSavedRootHtml;
   }
 
   function markDirty() {
@@ -1483,141 +2040,289 @@
     state.saveTimer = window.setTimeout(saveDraft, 450);
   }
 
+  /**
+   * @param {string=} html
+   */
   function saveDraft(html) {
+    persistLocalDraft(html || serializeDocument());
+  }
+
+  /**
+   * @param {string} nextHtml
+   */
+  function persistLocalDraft(nextHtml) {
     try {
-      var nextHtml = html || serializeDocument();
-      var draftKey = options.storageKey + ":draft";
-      var previousDraft = localStorage.getItem(draftKey);
-      if (previousDraft && previousDraft !== nextHtml) {
-        localStorage.setItem(options.storageKey + ":previous-draft", previousDraft);
-      }
+      var draftKey = getDraftStorageKey();
+      rememberPreviousDraft(draftKey, nextHtml);
       localStorage.setItem(draftKey, nextHtml);
     } catch (error) {}
+  }
+
+  function getDraftStorageKey() {
+    return options.storageKey + ":draft";
+  }
+
+  function getPreviousDraftStorageKey() {
+    return options.storageKey + ":previous-draft";
+  }
+
+  /**
+   * @param {string} draftKey
+   * @param {string} nextHtml
+   */
+  function rememberPreviousDraft(draftKey, nextHtml) {
+    var previousDraft = localStorage.getItem(draftKey);
+    if (previousDraft && previousDraft !== nextHtml) {
+      localStorage.setItem(getPreviousDraftStorageKey(), previousDraft);
+    }
   }
 
   function saveNow() {
     var html = serializeDocument();
     var savedRootHtml = getRoot().innerHTML;
     var previousSavedRootHtml = state.lastSavedRootHtml;
-    var payload = {
+    var payload = buildSavePayload(html);
+
+    if (!dispatchBeforeSave(payload)) {
+      return Promise.resolve(false);
+    }
+
+    updateStatus("dirty", "Saving");
+
+    return persistSave(payload)
+      .then(function () {
+        markSaveSuccessful(payload, savedRootHtml, previousSavedRootHtml);
+        return true;
+      })
+      .catch(function (error) {
+        markSaveFailed(error, payload);
+        return false;
+      });
+  }
+
+  /**
+   * @param {string} html
+   * @returns {SavePayload}
+   */
+  function buildSavePayload(html) {
+    return {
       pathname: location.pathname,
       title: document.title,
       html: html,
       source: "hyperedit",
       updatedAt: new Date().toISOString(),
     };
-
-    var beforeEvent = new CustomEvent("hyperedit:before-save", {
-      cancelable: true,
-      detail: payload,
-    });
-
-    if (!document.dispatchEvent(beforeEvent)) {
-      return Promise.resolve(false);
-    }
-
-    updateStatus("dirty", "Saving");
-
-    var savePromise = options.saveUrl
-      ? fetch(options.saveUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }).then(function (response) {
-          if (!response.ok) {
-            throw new Error("Save failed: " + response.status);
-          }
-
-          return response;
-        })
-      : Promise.resolve(saveDraft(html));
-
-    return savePromise
-      .then(function () {
-        if (previousSavedRootHtml !== savedRootHtml) {
-          state.previousSavedRootHtml = previousSavedRootHtml;
-        }
-        state.lastSavedRootHtml = savedRootHtml;
-        state.dirty = false;
-        updateToolbar();
-        updateStatus("saved", "Saved");
-        document.dispatchEvent(
-          new CustomEvent("hyperedit:save", { detail: payload })
-        );
-        window.setTimeout(updateToolbar, 900);
-        return true;
-      })
-      .catch(function (error) {
-        updateStatus("dirty", error.message || "Save failed");
-        document.dispatchEvent(
-          new CustomEvent("hyperedit:save-error", {
-            detail: { error: error, payload: payload },
-          })
-        );
-        return false;
-      });
   }
 
-  function serializeDocument() {
-    var clone = document.documentElement.cloneNode(true);
-    clone.classList.remove("hx-editor-on", "hx-editor-sampling");
+  /**
+   * @param {SavePayload} payload
+   */
+  function dispatchBeforeSave(payload) {
+    return document.dispatchEvent(
+      new CustomEvent("hyperedit:before-save", {
+        cancelable: true,
+        detail: payload,
+      })
+    );
+  }
 
-    if (!clone.getAttribute("class")) {
-      clone.removeAttribute("class");
+  /**
+   * @param {SavePayload} payload
+   * @returns {Promise<Response | void>}
+   */
+  function persistSave(payload) {
+    return options.saveUrl
+      ? postSavePayload(payload)
+      : Promise.resolve(saveDraft(payload.html));
+  }
+
+  /**
+   * @param {SavePayload} payload
+   * @returns {Promise<Response>}
+   */
+  function postSavePayload(payload) {
+    return fetch(options.saveUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error("Save failed: " + response.status);
+      }
+
+      return response;
+    });
+  }
+
+  /**
+   * @param {SavePayload} payload
+   * @param {string} savedRootHtml
+   * @param {string} previousSavedRootHtml
+   */
+  function markSaveSuccessful(payload, savedRootHtml, previousSavedRootHtml) {
+    if (previousSavedRootHtml !== savedRootHtml) {
+      state.previousSavedRootHtml = previousSavedRootHtml;
     }
+    state.lastSavedRootHtml = savedRootHtml;
+    state.dirty = false;
+    updateToolbar();
+    updateStatus("saved", "Saved");
+    dispatchSave(payload);
+    window.setTimeout(updateToolbar, 900);
+  }
 
+  /**
+   * @param {unknown} error
+   * @param {SavePayload} payload
+   */
+  function markSaveFailed(error, payload) {
+    updateStatus("dirty", getErrorMessage(error, "Save failed"));
+    dispatchSaveError(error, payload);
+  }
+
+  /**
+   * @param {SavePayload} payload
+   */
+  function dispatchSave(payload) {
+    document.dispatchEvent(new CustomEvent("hyperedit:save", { detail: payload }));
+  }
+
+  /**
+   * @param {unknown} error
+   * @param {SavePayload} payload
+   */
+  function dispatchSaveError(error, payload) {
+    document.dispatchEvent(
+      new CustomEvent("hyperedit:save-error", {
+        detail: { error: error, payload: payload },
+      })
+    );
+  }
+
+  /**
+   * @param {unknown} error
+   * @param {string} fallback
+   */
+  function getErrorMessage(error, fallback) {
+    return error instanceof Error && error.message ? error.message : fallback;
+  }
+
+  /**
+   * @returns {string}
+   */
+  function serializeDocument() {
+    return getDoctype() + createSerializableDocumentClone().outerHTML;
+  }
+
+  /**
+   * @returns {HTMLElement}
+   */
+  function createSerializableDocumentClone() {
+    var clone = cloneDocumentElement();
+    clone.classList.remove("hx-editor-on", "hx-editor-sampling");
+    removeEmptyClassAttribute(clone);
+    removeEditorRuntimeFromClone(clone);
+    restoreEditableCloneState(clone);
+    cleanCommentBoxClones(clone);
+    return clone;
+  }
+
+  /**
+   * @returns {HTMLElement}
+   */
+  function cloneDocumentElement() {
+    return /** @type {HTMLElement} */ (document.documentElement.cloneNode(true));
+  }
+
+  /**
+   * @param {HTMLElement} clone
+   */
+  function removeEditorRuntimeFromClone(clone) {
     Array.prototype.forEach.call(
-      clone.querySelectorAll("[data-hx-editor-ui], #hyperedit-page-style"),
-      function (element) {
+      clone.querySelectorAll(editorRuntimeSelector),
+      function (/** @type {Element} */ element) {
         element.remove();
       }
     );
-
-    Array.prototype.forEach.call(
-      clone.querySelectorAll(".hx-editor-editable"),
-      function (element) {
-        var wasActivated = element.classList.contains("hx-editor-editable");
-        element.classList.remove(
-          "hx-editor-editable",
-          "hx-editor-active"
-        );
-
-        if (wasActivated) {
-          restoreCloneAttribute(
-            element,
-            "contenteditable",
-            element.dataset.hxPrevContenteditable
-          );
-          restoreCloneAttribute(
-            element,
-            "spellcheck",
-            element.dataset.hxPrevSpellcheck
-          );
-          delete element.dataset.hxPrevContenteditable;
-          delete element.dataset.hxPrevSpellcheck;
-        }
-
-        if (!element.getAttribute("class")) {
-          element.removeAttribute("class");
-        }
-      }
-    );
-
-    Array.prototype.forEach.call(
-      clone.querySelectorAll("[data-hx-comment-box]"),
-      function (box) {
-        box.removeAttribute("contenteditable");
-        box.removeAttribute("spellcheck");
-        box.classList.remove("hx-comment-dragging");
-        if (!box.getAttribute("class")) {
-          box.removeAttribute("class");
-        }
-      }
-    );
-
-    return getDoctype() + clone.outerHTML;
   }
 
+  /**
+   * @param {HTMLElement} clone
+   */
+  function restoreEditableCloneState(clone) {
+    Array.prototype.forEach.call(
+      clone.querySelectorAll(editableCloneSelector),
+      function (/** @type {Element} */ element) {
+        if (element instanceof HTMLElement) {
+          restoreEditableCloneElement(element);
+        }
+      }
+    );
+  }
+
+  /**
+   * @param {HTMLElement} element
+   */
+  function restoreEditableCloneElement(element) {
+    var wasActivated = element.classList.contains(editableClass);
+    element.classList.remove(editableClass, activeClass);
+
+    if (wasActivated) {
+      restoreCloneAttribute(
+        element,
+        "contenteditable",
+        element.dataset.hxPrevContenteditable
+      );
+      restoreCloneAttribute(
+        element,
+        "spellcheck",
+        element.dataset.hxPrevSpellcheck
+      );
+      delete element.dataset.hxPrevContenteditable;
+      delete element.dataset.hxPrevSpellcheck;
+    }
+
+    removeEmptyClassAttribute(element);
+  }
+
+  /**
+   * @param {HTMLElement} clone
+   */
+  function cleanCommentBoxClones(clone) {
+    Array.prototype.forEach.call(
+      clone.querySelectorAll(commentBoxSelector),
+      function (/** @type {Element} */ box) {
+        if (box instanceof HTMLElement) {
+          cleanCommentBoxClone(box);
+        }
+      }
+    );
+  }
+
+  /**
+   * @param {HTMLElement} box
+   */
+  function cleanCommentBoxClone(box) {
+    box.removeAttribute("contenteditable");
+    box.removeAttribute("spellcheck");
+    box.classList.remove(commentDraggingClass);
+    removeEmptyClassAttribute(box);
+  }
+
+  /**
+   * @param {HTMLElement} element
+   */
+  function removeEmptyClassAttribute(element) {
+    if (!element.getAttribute("class")) {
+      element.removeAttribute("class");
+    }
+  }
+
+  /**
+   * @param {HTMLElement} element
+   * @param {string} attribute
+   * @param {string | undefined} value
+   */
   function restoreCloneAttribute(element, attribute, value) {
     if (value === undefined || value === "__missing__") {
       element.removeAttribute(attribute);
@@ -1647,7 +2352,7 @@
       var tool = button.dataset.tool;
       var pressed =
         (tool === "edit" && state.editing) ||
-        (tool === state.tool && tool !== "save") ||
+        tool === state.tool ||
         (tool === "sample" && state.sampling) ||
         (tool === "annotations" &&
           toolbar.highlightsPanel &&
@@ -1659,10 +2364,7 @@
       }
 
       if (tool === "undo") {
-        button.disabled =
-          !state.editing ||
-          !state.undoStack.length &&
-          !state.previousSavedRootHtml;
+        button.disabled = !state.editing || !hasUndoHistory();
       }
     });
 
@@ -1683,6 +2385,10 @@
     }
   }
 
+  /**
+   * @param {"off" | "ready" | "dirty" | "saved"} status
+   * @param {string} label
+   */
   function updateStatus(status, label) {
     toolbar.status.dataset.state = status;
     toolbar.status.title = label;
@@ -1721,7 +2427,7 @@
     );
   }
 
-  window.HyperEdit = {
+  editorWindow.HyperEdit = {
     destroy: destroy,
     enable: function () {
       setEditing(true);

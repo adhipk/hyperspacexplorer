@@ -12,8 +12,10 @@
         <p class="brand">HyperEdit</p>
         <nav class="site-nav" aria-label="Project pages">
           <a href="./index.html">Overview</a>
+          <a href="./current-state.html">Current State</a>
           <a href="./phase2.html">Phase 2</a>
           <a href="./plan.html">Plan</a>
+          <a href="./comment-isolation.html">Comment Isolation</a>
           <a href="./design-doc.svg">Design SVG</a>
         </nav>
       </header>
@@ -25,9 +27,10 @@
         </section>
 
         <p class="lede">
-          Phase 2 proves that HyperEdit can stay a single browser script while
-          delegating persistence to a trusted writer. The frontend stays generic;
-          the Bun server is only one minimal backend implementation.
+          Phase 2 proves that HyperEdit can keep a simple browser include while
+          delegating persistence to a trusted writer. The source can still be
+          organized without adding a build step; the Bun server is only one
+          minimal backend implementation.
         </p>
 
         <section class="section split">
@@ -90,16 +93,17 @@
         </section>
 
         <section class="section">
-          <h2>Next save shape</h2>
+          <h2>Later save shape</h2>
           <p>
-            The next iteration should save HyperEdit-owned artifacts rather than
-            arbitrary browser HTML: tool events, annotation records, or semantic
-            components that can be rendered back onto a clean document.
+            After the typed source cleanup, a later iteration should save
+            HyperEdit-owned artifacts rather than arbitrary browser HTML: tool
+            events, annotation records, or semantic components that can be
+            rendered back onto a clean document.
           </p>
         </section>
 
         <section class="section">
-          <h2>Tool boundary</h2>
+          <h2>Future tool boundary</h2>
           <p>
             Each tool should declare the browser events it consumes, the state
             it reads, and the artifact it emits. Shared pointer, selection,
