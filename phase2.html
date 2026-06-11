@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HyperEdit Phase 2 Save Design</title>
+    <link rel="stylesheet" href="./docs.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="site-header" data-hx-ignore>
+        <p class="brand">HyperEdit</p>
+        <nav class="site-nav" aria-label="Project pages">
+          <a href="./index.html">Overview</a>
+          <a href="./phase2.html">Phase 2</a>
+          <a href="./design-doc.svg">Design SVG</a>
+        </nav>
+      </header>
+
+      <main data-testid="editable-root">
+        <section>
+          <p class="eyebrow">Phase 2</p>
+          <h1>Save edited HTML through the serving backend.</h1>
+        </section>
+
+        <p class="lede">
+          Phase 2 should keep the client simple. The page edits itself with
+          native browser behavior, then sends a cleaned HTML snapshot to the
+          server that originally served the file.
+        </p>
+
+        <section class="section split">
+          <div>
+            <h2>Client contract</h2>
+          </div>
+          <div>
+            <p>
+              The script dispatches <code>hyperedit:before-save</code> before
+              persistence, then POSTs a JSON payload when
+              <code>data-save-url</code> is configured.
+            </p>
+          </div>
+        </section>
+
+        <section class="section split">
+          <div>
+            <h2>Payload</h2>
+          </div>
+          <pre><code>{
+  "pathname": "/index.html",
+  "title": "HyperEdit Project Notes",
+  "html": "&lt;!DOCTYPE html&gt;...",
+  "source": "hyperedit",
+  "updatedAt": "2026-06-11T06:00:00.000Z"
+}</code></pre>
+        </section>
+
+        <section class="section">
+          <h2>Backend responsibilities</h2>
+          <ol>
+            <li>Resolve the request pathname to an allowed file path.</li>
+            <li>Reject writes outside the project document root.</li>
+            <li>Persist the submitted HTML atomically.</li>
+            <li>Return a clear success or failure response for the toolbar.</li>
+          </ol>
+        </section>
+
+        <section class="section">
+          <h2>Hyperclay-style shape</h2>
+          <p>
+            The backend can behave like a Hyperclay server: serve static HTML,
+            accept edited HTML for the current route, validate the target, write
+            the file, and immediately serve the updated document on refresh.
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <script src="./hyperedit.js" data-root="main"></script>
+  </body>
+</html>

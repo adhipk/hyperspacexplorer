@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HyperEdit Project Notes</title>
+    <link rel="stylesheet" href="./docs.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="site-header" data-hx-ignore>
+        <p class="brand">HyperEdit</p>
+        <nav class="site-nav" aria-label="Project pages">
+          <a href="./index.html">Overview</a>
+          <a href="./phase2.html">Phase 2</a>
+          <a href="./design-doc.svg">Design SVG</a>
+        </nav>
+      </header>
+
+      <main data-testid="editable-root">
+        <section>
+          <p class="eyebrow">Project Documentation</p>
+          <h1>Single script editing for ordinary HTML pages.</h1>
+        </section>
+
+        <p class="lede">
+          HyperEdit is a small browser script that can be dropped into a page to
+          turn the document itself into the editing surface. The page stays
+          regular HTML; the script only provides an edit switch, highlight tools,
+          and a save handoff for the server.
+        </p>
+
+        <section class="section split">
+          <div>
+            <h2>Design intent</h2>
+          </div>
+          <div>
+            <p>
+              The UI should feel like the minimalist highlighter sketch in the
+              design document: a quiet floating rail, three simple colors,
+              obvious edit on/off state, and no heavy application frame around
+              the content.
+            </p>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>What phase 1 does</h2>
+          <div class="facts">
+            <div class="fact">
+              <h3>Native editing</h3>
+              <p>
+                Edit mode applies native <code>contenteditable</code> to the
+                configured root, usually <code>main</code>, so the document is
+                the editor.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>Small tools</h3>
+              <p>
+                The toolbar supports edit mode, highlights, color sampling, and
+                manual save without requiring page authors to build UI.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>HTML handoff</h3>
+              <p>
+                Saving serializes the current document and removes temporary
+                editor state before sending it to a backend hook.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section split">
+          <div>
+            <h2>Consumer include</h2>
+          </div>
+          <pre><code>&lt;script
+  src="/hyperedit.js"
+  data-root="main"
+  data-save-url="/__hyperedit/save"&gt;&lt;/script&gt;</code></pre>
+        </section>
+
+        <section class="section">
+          <h2>Open question</h2>
+          <div class="notice">
+            <p>
+              A browser script cannot write the HTML file back to disk by
+              itself. It needs either local draft storage or a serving backend
+              that accepts the serialized HTML and persists the file.
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./hyperedit.js" data-root="main"></script>
+  </body>
+</html>

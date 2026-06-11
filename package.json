@@ -1,0 +1,14 @@
+{
+  "name": "hyperspacexplorer-hyperedit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "check": "node --check hyperedit.js",
+    "serve": "python3 -m http.server 5173 --bind 127.0.0.1",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.60.0"
+  }
+}
