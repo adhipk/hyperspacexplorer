@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HyperEdit Plan</title>
+    <link rel="stylesheet" href="./docs.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="site-header" data-hx-ignore>
+        <p class="brand">HyperEdit</p>
+        <nav class="site-nav" aria-label="Project pages">
+          <a href="./index.html">Overview</a>
+          <a href="./phase2.html">Phase 2</a>
+          <a href="./plan.html">Plan</a>
+          <a href="./design-doc.svg">Design SVG</a>
+        </nav>
+      </header>
+
+      <main data-testid="editable-root">
+        <section>
+          <p class="eyebrow">Planning Artifact</p>
+          <h1>Plan in HTML, persist only what HyperEdit owns.</h1>
+        </section>
+
+        <p class="lede">
+          Planning decisions live in HTML artifacts so the plan can include
+          interactive sections, comparisons, and richer structure. Markdown
+          planning artifacts are intentionally not part of this project.
+        </p>
+
+        <section class="section">
+          <h2>Decision status</h2>
+          <div class="decision-grid">
+            <article class="decision">
+              <span class="status-pill accepted">Accepted</span>
+              <h3>Single script frontend</h3>
+              <p>
+                HyperEdit remains a drop-in JavaScript file that injects its UI
+                into ordinary HTML pages.
+              </p>
+            </article>
+            <article class="decision">
+              <span class="status-pill accepted">Accepted</span>
+              <h3>Generic save endpoint</h3>
+              <p>
+                The frontend posts to a configurable <code>data-save-url</code>.
+                The Bun server is only a reference implementation.
+              </p>
+            </article>
+            <article class="decision">
+              <span class="status-pill rejected">Rejected</span>
+              <h3>Raw DOM as source of truth</h3>
+              <p>
+                The live browser DOM can include extension nodes and runtime UI,
+                so it should not be the long-term save format.
+              </p>
+            </article>
+            <article class="decision">
+              <span class="status-pill next">Next</span>
+              <h3>Owned artifacts</h3>
+              <p>
+                Save structured HyperEdit artifacts, then reconcile them with
+                clean source HTML.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section split">
+          <div>
+            <h2>Goal</h2>
+          </div>
+          <div>
+            <p>
+              Build a single JavaScript file that turns ordinary HTML pages into
+              a lightweight editing surface with minimal page-author setup.
+            </p>
+            <ul>
+              <li>Inject the toolbar and runtime UI.</li>
+              <li>Use native <code>contenteditable</code> for text edits.</li>
+              <li>Keep the design close to the minimalist highlighter sketch.</li>
+              <li>Persist through a trusted writer when one exists.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Current result</h2>
+          <div class="facts">
+            <div class="fact">
+              <h3>Working loop</h3>
+              <p>
+                Edit mode, highlights, comments, color sampling, undo, and save
+                are usable enough to validate the interaction direction.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>Server answer</h3>
+              <p>
+                A browser can keep a local draft, but source-file writes need a
+                server, app shell, extension permission, or another trusted
+                writer.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>Reference server</h3>
+              <p>
+                The Bun server serves root files and implements one minimal
+                <code>/__hyperedit/save</code> endpoint.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section split">
+          <div>
+            <h2>Frontend contract</h2>
+          </div>
+          <pre><code>&lt;script
+  src="/hyperedit.js"
+  data-root="main"
+  data-save-url="/your-save-endpoint"&gt;&lt;/script&gt;</code></pre>
+        </section>
+
+        <section class="section">
+          <h2>Known issues</h2>
+          <div class="details-list">
+            <details open>
+              <summary>Maintainability</summary>
+              <p>
+                <code>hyperedit.js</code> mixes tool behavior, global input
+                events, state updates, serialization, and UI rendering.
+              </p>
+            </details>
+            <details>
+              <summary>Comment editing</summary>
+              <p>
+                Comment boxes currently live inside the editable root. Keyboard
+                input can split boxes, duplicate nodes, overwrite nearby text,
+                and shift layout after refresh.
+              </p>
+            </details>
+            <details>
+              <summary>Serialization risk</summary>
+              <p>
+                Full-document serialization can persist extension DOM, runtime
+                UI, and other nodes HyperEdit does not own.
+              </p>
+            </details>
+            <details>
+              <summary>Asset sizing</summary>
+              <p>
+                SVGs opened as standalone documents need safe intrinsic sizing
+                because page CSS does not apply there.
+              </p>
+            </details>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Tool model</h2>
+          <div class="tool-grid">
+            <details open>
+              <summary>Select</summary>
+              <p>Consumes pointer and selection state. Emits active target state.</p>
+            </details>
+            <details>
+              <summary>Text Edit</summary>
+              <p>
+                Consumes native contenteditable input. Emits content operations
+                for the editable block.
+              </p>
+            </details>
+            <details>
+              <summary>Highlight</summary>
+              <p>
+                Consumes a normalized text range and selected color. Emits an
+                annotation record or semantic marker.
+              </p>
+            </details>
+            <details>
+              <summary>Comment</summary>
+              <p>
+                Consumes a range or annotation id plus isolated overlay input.
+                Emits a comment record.
+              </p>
+            </details>
+            <details>
+              <summary>Color Sample</summary>
+              <p>
+                Consumes EyeDropper output or sampled styles. Emits selected
+                color state.
+              </p>
+            </details>
+            <details>
+              <summary>Save</summary>
+              <p>
+                Consumes dirty HyperEdit-owned state. Emits a structured save
+                request, not arbitrary browser HTML.
+              </p>
+            </details>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Save format comparison</h2>
+          <div class="table-wrap">
+            <table class="comparison">
+              <thead>
+                <tr>
+                  <th>Option</th>
+                  <th>Strength</th>
+                  <th>Risk</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th>Operation log</th>
+                  <td>Auditable and rejects unsafe changes server-side.</td>
+                  <td>Needs stable anchors and replay logic.</td>
+                  <td><span class="status-pill next">Candidate</span></td>
+                </tr>
+                <tr>
+                  <th>Annotation records</th>
+                  <td>Fits highlights and comments without overlay DOM.</td>
+                  <td>Anchors must survive edits.</td>
+                  <td><span class="status-pill accepted">Preferred</span></td>
+                </tr>
+                <tr>
+                  <th>Semantic elements</th>
+                  <td>Readable source with clear HyperEdit ownership.</td>
+                  <td>Needs careful contenteditable behavior.</td>
+                  <td><span class="status-pill accepted">Preferred</span></td>
+                </tr>
+                <tr>
+                  <th>Full HTML snapshot</th>
+                  <td>Simple for the current prototype.</td>
+                  <td>Persists arbitrary browser DOM.</td>
+                  <td><span class="status-pill rejected">Prototype only</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Shared event layer</h2>
+          <ol>
+            <li>One pointer router dispatches events to the active tool.</li>
+            <li>One selection reader normalizes browser ranges.</li>
+            <li>
+              One keyboard/input controller separates page editing from overlay
+              editing.
+            </li>
+            <li>
+              One save dispatcher builds payloads from HyperEdit-owned state.
+            </li>
+          </ol>
+        </section>
+
+        <section class="section">
+          <h2>Recommended next phase</h2>
+          <p>
+            Move toward a hybrid of annotation records and semantic inline
+            markers. Keep comment editors and tool UI outside the editable root,
+            save structured HyperEdit artifacts, and let the server reconcile
+            those artifacts with clean source HTML.
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <script src="./hyperedit.js" data-root="main"></script>
+  </body>
+</html>

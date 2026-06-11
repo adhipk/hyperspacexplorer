@@ -13,6 +13,7 @@
         <nav class="site-nav" aria-label="Project pages">
           <a href="./index.html">Overview</a>
           <a href="./phase2.html">Phase 2</a>
+          <a href="./plan.html">Plan</a>
           <a href="./design-doc.svg">Design SVG</a>
         </nav>
       </header>
@@ -24,28 +25,28 @@
         </section>
 
         <p class="lede">
-          Phase 2 keeps the client simple. The page edits itself with native
-          browser behavior, then sends a cleaned HTML snapshot to any configured
-          save endpoint.
+          Phase 2 proves that HyperEdit can stay a single browser script while
+          delegating persistence to a trusted writer. The frontend stays generic;
+          the Bun server is only one minimal backend implementation.
         </p>
 
         <section class="section split">
           <div>
-            <h2>Client contract</h2>
+            <h2>Current contract</h2>
           </div>
           <div>
             <p>
-              The script dispatches <code>hyperedit:before-save</code> before
-              persistence, then POSTs a JSON payload when
-              <code>data-save-url</code> is configured. The Bun server in this
-              repo is one minimal implementation of that generic contract.
+              The script dispatches <code>hyperedit:before-save</code>, then
+              POSTs a JSON payload when <code>data-save-url</code> is
+              configured. The server validates the target path and writes the
+              submitted HTML.
             </p>
           </div>
         </section>
 
         <section class="section split">
           <div>
-            <h2>Payload</h2>
+            <h2>Prototype payload</h2>
           </div>
           <pre><code>{
   "pathname": "/index.html",
@@ -59,44 +60,51 @@
         <section class="section">
           <h2>Backend responsibilities</h2>
           <ol>
-            <li>Resolve the request pathname to an allowed file path.</li>
+            <li>Serve ordinary project files from the document root.</li>
+            <li>Resolve the save target to an allowed file path.</li>
             <li>Reject writes outside the project document root.</li>
-            <li>Persist the submitted HTML atomically.</li>
+            <li>Persist only accepted HyperEdit save payloads.</li>
             <li>Return a clear success or failure response for the toolbar.</li>
           </ol>
         </section>
 
         <section class="section">
-          <h2>Known issues</h2>
+          <h2>What we learned</h2>
           <ol>
             <li>
-              Refreshing after a save can shift layout because persisted comment
-              boxes are ordinary document nodes until the editor script restyles
-              them.
+              Native contenteditable is useful for the base editing surface.
             </li>
             <li>
-              Comment boxes sit inside the contenteditable root, so keyboard
-              input can split boxes, create duplicate boxes, or overwrite text.
+              Tool UI and comment editors should stay outside the editable
+              document flow.
             </li>
             <li>
-              Full-document serialization can capture browser extension DOM or
-              other third-party injected nodes.
+              Persisting raw browser DOM can capture extension code and runtime
+              UI that HyperEdit does not own.
             </li>
             <li>
-              The current script is a working prototype, but its tool handling
-              and event handling need to be separated before more features are
-              added.
+              Tool behavior needs explicit input and output contracts before
+              adding more features.
             </li>
           </ol>
         </section>
 
         <section class="section">
-          <h2>Next shape</h2>
+          <h2>Next save shape</h2>
           <p>
             The next iteration should save HyperEdit-owned artifacts rather than
-            raw browser HTML: tool events, annotation records, or semantic
-            components that can be rendered back onto the document without
-            preserving unrelated runtime DOM.
+            arbitrary browser HTML: tool events, annotation records, or semantic
+            components that can be rendered back onto a clean document.
+          </p>
+        </section>
+
+        <section class="section">
+          <h2>Tool boundary</h2>
+          <p>
+            Each tool should declare the browser events it consumes, the state
+            it reads, and the artifact it emits. Shared pointer, selection,
+            keyboard, and save dispatchers should route work to tools instead of
+            each tool wiring global handlers itself.
           </p>
         </section>
       </main>
