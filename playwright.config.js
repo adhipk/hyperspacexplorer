@@ -1,15 +1,18 @@
 const { defineConfig, devices } = require("@playwright/test");
 
+const port = process.env.PORT || "5173";
+const baseURL = `http://localhost:${port}`;
+
 module.exports = defineConfig({
   testDir: "./tests",
   timeout: 30_000,
   use: {
-    baseURL: "http://localhost:5173",
+    baseURL,
     trace: "on-first-retry",
   },
   webServer: {
-    command: "npm run serve",
-    url: "http://localhost:5173/index.html",
+    command: `PORT=${port} npm run serve`,
+    url: `${baseURL}/index.html`,
     reuseExistingServer: true,
     timeout: 10_000,
   },

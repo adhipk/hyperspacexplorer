@@ -1,11 +1,11 @@
 /*
-  HyperEdit phase 1
+  HyperEdit
 
   Include in any HTML page:
-  <script src="/hyperedit.js" data-save-url="/__hyperedit/save"></script>
+  <script src="/hyperedit.js" data-save-url="/your-save-endpoint"></script>
 
-  The optional data-save-url hook is intentionally small for phase 2. When it is
-  present, the Save button POSTs { pathname, title, html, source, updatedAt }.
+  The optional data-save-url hook is backend-agnostic. When it is present, the
+  Save button POSTs { pathname, title, html, source, updatedAt } to that URL.
 */
 (function () {
   "use strict";

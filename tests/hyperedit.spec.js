@@ -122,6 +122,36 @@ test("save without backend stores a cleaned local draft", async ({ page }) => {
   expect(draft).not.toContain("hx-editor-editable");
 });
 
+test("save hook posts serialized html to a configured backend URL", async ({
+  page,
+}) => {
+  let payload;
+
+  await page.route("**/generic-save", async (route, request) => {
+    payload = request.postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  });
+
+  await page.goto("/");
+  await enableEditing(page);
+  await page.evaluate(() => {
+    window.HyperEdit.configure({ saveUrl: "/generic-save" });
+    document.querySelector("h1").textContent = "Generic save hook.";
+  });
+
+  await page.evaluate(() => window.HyperEdit.save());
+
+  expect(payload.pathname).toBe("/");
+  expect(payload.source).toBe("hyperedit");
+  expect(payload.html).toContain("Generic save hook.");
+  expect(payload.html).toContain("<!DOCTYPE html>");
+  expect(payload.html).not.toContain("hx-editor-editable");
+});
+
 test("comment tool creates an inline floating comment box", async ({ page }) => {
   await page.goto("/");
   await enableEditing(page);

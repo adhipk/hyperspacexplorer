@@ -20,13 +20,13 @@
       <main data-testid="editable-root">
         <section>
           <p class="eyebrow">Phase 2</p>
-          <h1>Save edited HTML through the serving backend.</h1>
+          <h1>Save edited HTML through a generic save endpoint.</h1>
         </section>
 
         <p class="lede">
-          Phase 2 should keep the client simple. The page edits itself with
-          native browser behavior, then sends a cleaned HTML snapshot to the
-          server that originally served the file.
+          Phase 2 keeps the client simple. The page edits itself with native
+          browser behavior, then sends a cleaned HTML snapshot to any configured
+          save endpoint.
         </p>
 
         <section class="section split">
@@ -37,7 +37,8 @@
             <p>
               The script dispatches <code>hyperedit:before-save</code> before
               persistence, then POSTs a JSON payload when
-              <code>data-save-url</code> is configured.
+              <code>data-save-url</code> is configured. The Bun server in this
+              repo is one minimal implementation of that generic contract.
             </p>
           </div>
         </section>
@@ -66,16 +67,45 @@
         </section>
 
         <section class="section">
-          <h2>Hyperclay-style shape</h2>
+          <h2>Known issues</h2>
+          <ol>
+            <li>
+              Refreshing after a save can shift layout because persisted comment
+              boxes are ordinary document nodes until the editor script restyles
+              them.
+            </li>
+            <li>
+              Comment boxes sit inside the contenteditable root, so keyboard
+              input can split boxes, create duplicate boxes, or overwrite text.
+            </li>
+            <li>
+              Full-document serialization can capture browser extension DOM or
+              other third-party injected nodes.
+            </li>
+            <li>
+              The current script is a working prototype, but its tool handling
+              and event handling need to be separated before more features are
+              added.
+            </li>
+          </ol>
+        </section>
+
+        <section class="section">
+          <h2>Next shape</h2>
           <p>
-            The backend can behave like a Hyperclay server: serve static HTML,
-            accept edited HTML for the current route, validate the target, write
-            the file, and immediately serve the updated document on refresh.
+            The next iteration should save HyperEdit-owned artifacts rather than
+            raw browser HTML: tool events, annotation records, or semantic
+            components that can be rendered back onto the document without
+            preserving unrelated runtime DOM.
           </p>
         </section>
       </main>
     </div>
 
-    <script src="./hyperedit.js" data-root="main"></script>
+    <script
+      src="./hyperedit.js"
+      data-root="main"
+      data-save-url="/__hyperedit/save"
+    ></script>
   </body>
 </html>
