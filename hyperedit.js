@@ -37,9 +37,13 @@
     dirty: false,
     editables: [],
     activeElement: null,
-    commentTarget: null,
     sampling: false,
     saveTimer: 0,
+    undoStack: [],
+    maxUndo: 40,
+    lastSavedRootHtml: "",
+    previousSavedRootHtml: "",
+    commentDrag: null,
   };
 
   var host = null;
@@ -53,6 +57,7 @@
     mountToolbar();
     bindDocumentEvents();
     refreshEditables();
+    state.lastSavedRootHtml = getRoot().innerHTML;
     updateToolbar();
 
     observer = new MutationObserver(function () {
@@ -83,23 +88,64 @@
     globalStyle.id = "hyperedit-page-style";
     globalStyle.textContent = [
       ".hx-editor-editable {",
-      "  outline: 1px solid transparent;",
+      "  position: relative;",
+      "  outline: none !important;",
       "  outline-offset: 4px;",
+      "  caret-color: #0b7285;",
       "  transition: outline-color 140ms ease, background-color 140ms ease;",
       "}",
+      ".hx-editor-editable:focus,",
+      ".hx-editor-editable:focus-visible {",
+      "  outline: none !important;",
+      "  box-shadow: none !important;",
+      "}",
       "html.hx-editor-on .hx-editor-editable:hover {",
-      "  outline-color: rgba(151, 117, 250, 0.48);",
-      "  background-color: rgba(208, 204, 254, 0.08);",
+      "  outline-color: transparent;",
+      "  background-color: transparent;",
       "}",
       "html.hx-editor-on .hx-editor-active {",
-      "  outline-color: rgba(21, 170, 191, 0.82);",
-      "  background-color: rgba(21, 170, 191, 0.06);",
+      "  outline-color: transparent;",
+      "  background-color: transparent;",
       "}",
       "html.hx-editor-on mark[data-hx-highlight] {",
       "  border-radius: 0.22em;",
       "  box-decoration-break: clone;",
       "  -webkit-box-decoration-break: clone;",
       "  padding: 0.02em 0.12em;",
+      "}",
+      "html.hx-editor-on [data-hx-comment-anchor] {",
+      "  border-bottom: 2px solid rgba(21, 170, 191, 0.72);",
+      "  box-shadow: inset 0 -0.38em rgba(21, 170, 191, 0.1);",
+      "  cursor: pointer;",
+      "}",
+      "[data-hx-comment-box] {",
+      "  position: absolute;",
+      "  z-index: 2147483000;",
+      "  min-width: 180px;",
+      "  max-width: min(320px, calc(100vw - 32px));",
+      "  min-height: 28px;",
+      "  padding: 4px 6px;",
+      "  color: #0b7285;",
+      "  background: transparent;",
+      "  border: 1px solid transparent;",
+      "  border-radius: 3px;",
+      "  font: 16px/1.35 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;",
+      "  letter-spacing: 0;",
+      "  white-space: pre-wrap;",
+      "  overflow-wrap: anywhere;",
+      "  outline: none;",
+      "}",
+      "html.hx-editor-on [data-hx-comment-box] {",
+      "  cursor: text;",
+      "}",
+      "html.hx-editor-on [data-hx-comment-box]:hover,",
+      "html.hx-editor-on [data-hx-comment-box]:focus {",
+      "  border-color: rgba(21, 170, 191, 0.45);",
+      "  background: rgba(246, 247, 244, 0.82);",
+      "}",
+      "html.hx-editor-on [data-hx-comment-box].hx-comment-dragging {",
+      "  cursor: move;",
+      "  user-select: none;",
       "}",
       "html.hx-editor-sampling * { cursor: crosshair !important; }",
     ].join("\n");
@@ -206,51 +252,90 @@
       ".status[data-state='ready'] { background: #15aabf; }",
       ".status[data-state='dirty'] { background: #e03131; }",
       ".status[data-state='saved'] { background: #2f9e44; }",
-      ".comment-popover {",
+      ".note-panel {",
       "  position: fixed;",
       "  z-index: 2147483647;",
-      "  width: min(280px, calc(100vw - 28px));",
-      "  padding: 10px;",
+      "  width: min(340px, calc(100vw - 28px));",
+      "  padding: 14px 14px 12px 18px;",
       "  box-sizing: border-box;",
-      "  border: 1px solid rgba(151, 117, 250, 0.26);",
-      "  border-radius: 12px;",
-      "  background: rgba(246, 247, 244, 0.96);",
-      "  box-shadow: 0 18px 48px rgba(30, 30, 30, 0.14);",
-      "  backdrop-filter: blur(16px);",
-      "  -webkit-backdrop-filter: blur(16px);",
+      "  border: 1px solid rgba(19, 32, 37, 0.14);",
+      "  border-left: 3px solid #15aabf;",
+      "  border-radius: 5px;",
+      "  background: linear-gradient(#fffdf7, #fffdf7), repeating-linear-gradient(to bottom, transparent 0, transparent 27px, rgba(21, 170, 191, 0.08) 28px);",
+      "  box-shadow: 0 16px 38px rgba(30, 30, 30, 0.12);",
       "}",
-      ".comment-popover[hidden] { display: none; }",
-      ".comment-popover textarea {",
-      "  width: 100%;",
-      "  min-height: 86px;",
-      "  resize: vertical;",
-      "  box-sizing: border-box;",
-      "  padding: 9px 10px;",
-      "  border: 1px solid rgba(30, 30, 30, 0.12);",
-      "  border-radius: 8px;",
-      "  outline: none;",
-      "  color: #1e1e1e;",
-      "  background: #ffffff;",
-      "}",
-      ".comment-popover textarea:focus { border-color: rgba(21, 170, 191, 0.7); }",
-      ".comment-actions {",
+      ".note-panel[hidden] { display: none; }",
+      ".panel-title-row {",
       "  display: flex;",
-      "  justify-content: flex-end;",
-      "  gap: 8px;",
-      "  margin-top: 8px;",
+      "  align-items: center;",
+      "  justify-content: space-between;",
+      "  gap: 12px;",
       "}",
-      ".comment-actions button {",
-      "  width: 30px;",
-      "  height: 30px;",
+      ".panel-title {",
+      "  margin: 0;",
+      "  color: #0b7285;",
+      "  font-size: 12px;",
+      "  font-weight: 800;",
+      "  letter-spacing: 0;",
+      "  text-transform: uppercase;",
+      "}",
+      ".selection-preview {",
+      "  margin: 10px 0 0;",
+      "  color: rgba(30, 30, 30, 0.74);",
+      "  font-size: 13px;",
+      "  line-height: 1.35;",
+      "}",
+      ".highlight-list {",
+      "  display: grid;",
+      "  gap: 0;",
+      "  max-height: min(420px, calc(100vh - 180px));",
+      "  overflow: auto;",
+      "  margin-top: 10px;",
+      "}",
+      ".highlight-row {",
+      "  display: grid;",
+      "  grid-template-columns: 12px minmax(0, 1fr) auto;",
+      "  gap: 10px;",
+      "  align-items: start;",
+      "  padding: 10px 0;",
+      "  border-top: 1px solid rgba(19, 32, 37, 0.1);",
+      "}",
+      ".highlight-dot {",
+      "  width: 10px;",
+      "  height: 10px;",
+      "  margin-top: 4px;",
+      "  border-radius: 3px;",
+      "}",
+      ".highlight-text {",
+      "  margin: 0;",
+      "  color: #1e1e1e;",
+      "  font-size: 13px;",
+      "  line-height: 1.35;",
+      "}",
+      ".highlight-comment {",
+      "  margin: 4px 0 0;",
+      "  color: #0b7285;",
+      "  font-size: 12px;",
+      "  line-height: 1.35;",
+      "}",
+      ".row-actions { display: flex; gap: 6px; }",
+      ".row-actions button, .panel-icon-button {",
+      "  width: 28px;",
+      "  height: 28px;",
       "  display: grid;",
       "  place-items: center;",
       "  border: 1px solid rgba(30, 30, 30, 0.12);",
       "  border-radius: 999px;",
-      "  background: #ffffff;",
+      "  background: rgba(255, 255, 255, 0.82);",
       "  color: #1e1e1e;",
       "  cursor: pointer;",
       "}",
-      ".comment-actions svg { width: 16px; height: 16px; }",
+      ".row-actions svg, .panel-icon-button svg { width: 15px; height: 15px; }",
+      ".empty-state {",
+      "  margin: 12px 0 0;",
+      "  color: rgba(30, 30, 30, 0.64);",
+      "  font-size: 13px;",
+      "}",
       "@media (max-width: 720px) {",
       "  .rail {",
       "    left: 50%;",
@@ -277,6 +362,8 @@
       "  <div class='group'>",
       buttonHtml("select", "Select", iconCursor()),
       buttonHtml("highlight", "Highlight", iconHighlighter()),
+      buttonHtml("comment", "Comment", iconComment()),
+      buttonHtml("annotations", "Annotations", iconList()),
       buttonHtml("sample", "Copy color", iconPipette()),
       "  </div>",
       "  <div class='swatches' aria-label='Colors'>",
@@ -298,27 +385,31 @@
       "  </div>",
       "  <div class='divider'></div>",
       "  <div class='group'>",
+      buttonHtml("undo", "Undo last change", iconUndo()),
       buttonHtml("save", "Save", iconSave()),
       "    <div class='status' data-status title='Off'></div>",
       "  </div>",
       "</div>",
-      "<div class='comment-popover' data-comment-popover hidden>",
-      "  <textarea data-comment-input placeholder='Comment'></textarea>",
-      "  <div class='comment-actions'>",
-      "    <button type='button' data-comment-clear title='Clear comment' aria-label='Clear comment'>",
+      "<div class='highlights-panel note-panel' data-highlights-panel hidden>",
+      "  <div class='panel-title-row'>",
+      "    <p class='panel-title'>Annotations</p>",
+      "    <div class='row-actions'>",
+      "    <button type='button' data-highlights-clear title='Remove all annotations' aria-label='Remove all annotations'>",
       iconTrash(),
       "    </button>",
-      "    <button type='button' data-comment-close title='Done' aria-label='Done'>",
+      "    <button class='panel-icon-button' type='button' data-highlights-close title='Close' aria-label='Close'>",
       iconCheck(),
       "    </button>",
+      "    </div>",
       "  </div>",
+      "  <div class='highlight-list' data-highlights-list></div>",
       "</div>",
     ].join("");
 
     toolbar.rail = shadow.querySelector(".rail");
     toolbar.status = shadow.querySelector("[data-status]");
-    toolbar.commentPopover = shadow.querySelector("[data-comment-popover]");
-    toolbar.commentInput = shadow.querySelector("[data-comment-input]");
+    toolbar.highlightsPanel = shadow.querySelector("[data-highlights-panel]");
+    toolbar.highlightsList = shadow.querySelector("[data-highlights-list]");
     toolbar.buttons = Array.prototype.slice.call(
       shadow.querySelectorAll("[data-tool]")
     );
@@ -339,33 +430,13 @@
       });
     });
 
-    toolbar.commentInput.addEventListener("input", function () {
-      if (!state.commentTarget) {
-        return;
-      }
-
-      state.commentTarget.dataset.hxComment = toolbar.commentInput.value;
-      state.commentTarget.title = toolbar.commentInput.value;
-      markDirty();
-    });
+    shadow
+      .querySelector("[data-highlights-close]")
+      .addEventListener("click", closeHighlightsPanel);
 
     shadow
-      .querySelector("[data-comment-close]")
-      .addEventListener("click", closeCommentPopover);
-
-    shadow
-      .querySelector("[data-comment-clear]")
-      .addEventListener("click", function () {
-        if (!state.commentTarget) {
-          return;
-        }
-
-        delete state.commentTarget.dataset.hxComment;
-        state.commentTarget.removeAttribute("title");
-        toolbar.commentInput.value = "";
-        markDirty();
-        closeCommentPopover();
-      });
+      .querySelector("[data-highlights-clear]")
+      .addEventListener("click", removeAllAnnotations);
   }
 
   function buttonHtml(tool, label, icon) {
@@ -410,11 +481,43 @@
     );
   }
 
+  function iconComment() {
+    return (
+      "<svg" +
+      iconAttrs() +
+      "><path d='M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z'></path></svg>"
+    );
+  }
+
   function iconPipette() {
     return (
       "<svg" +
       iconAttrs() +
       "><path d='m12 9-8.4 8.4A2 2 0 0 0 3 18.8V20a1 1 0 0 0 1 1h1.2a2 2 0 0 0 1.4-.6L15 12'></path><path d='m18 9 .4.4a1 1 0 0 1 0 1.4l-2.6 2.6a1 1 0 0 1-1.4 0l-3.8-3.8a1 1 0 0 1 0-1.4l2.6-2.6a1 1 0 0 1 1.4 0l.4.4 3.4-3.4a1 1 0 1 1 3 3Z'></path></svg>"
+    );
+  }
+
+  function iconList() {
+    return (
+      "<svg" +
+      iconAttrs() +
+      "><path d='M8 6h13'></path><path d='M8 12h13'></path><path d='M8 18h13'></path><path d='M3 6h.01'></path><path d='M3 12h.01'></path><path d='M3 18h.01'></path></svg>"
+    );
+  }
+
+  function iconUndo() {
+    return (
+      "<svg" +
+      iconAttrs() +
+      "><path d='M3 7v6h6'></path><path d='M21 17a9 9 0 0 0-15-6.7L3 13'></path></svg>"
+    );
+  }
+
+  function iconLocate() {
+    return (
+      "<svg" +
+      iconAttrs() +
+      "><circle cx='12' cy='12' r='3'></circle><path d='M12 2v3'></path><path d='M12 19v3'></path><path d='M2 12h3'></path><path d='M19 12h3'></path></svg>"
     );
   }
 
@@ -453,7 +556,17 @@
       return;
     }
 
+    if (tool === "undo") {
+      undoLastChange();
+      return;
+    }
+
     if (!state.editing) {
+      return;
+    }
+
+    if (tool === "annotations") {
+      toggleHighlightsPanel();
       return;
     }
 
@@ -470,12 +583,14 @@
     document.addEventListener("dblclick", handleDoubleClick, true);
     document.addEventListener("focusin", handleFocusIn, true);
     document.addEventListener("focusout", handleFocusOut, true);
+    document.addEventListener("beforeinput", handleBeforeInput, true);
     document.addEventListener("input", handleInput, true);
     document.addEventListener("mouseup", handleMouseUp, true);
+    document.addEventListener("pointerdown", handlePointerDown, true);
     document.addEventListener("click", handleDocumentClick, true);
     document.addEventListener("keydown", handleKeydown, true);
-    window.addEventListener("resize", repositionCommentPopover);
-    window.addEventListener("scroll", repositionCommentPopover, true);
+    window.addEventListener("resize", repositionOverlays);
+    window.addEventListener("scroll", repositionOverlays, true);
   }
 
   function handleDoubleClick(event) {
@@ -508,6 +623,17 @@
     }
   }
 
+  function handleBeforeInput(event) {
+    if (
+      !state.editing ||
+      (!findEditable(event.target) && !findCommentBox(event.target))
+    ) {
+      return;
+    }
+
+    pushUndoSnapshot();
+  }
+
   function handleInput(event) {
     if (!state.editing) {
       return;
@@ -515,22 +641,103 @@
 
     if (
       findEditable(event.target) ||
+      findCommentBox(event.target) ||
       (event.target instanceof Element &&
-        event.target.closest("mark[data-hx-highlight]"))
+        event.target.closest(
+          "mark[data-hx-highlight], [data-hx-comment-anchor]"
+        ))
     ) {
+      syncAllCommentBoxesToAnchors();
       markDirty();
+      renderHighlightsPanel();
     }
   }
 
   function handleMouseUp(event) {
-    if (!state.editing || state.tool !== "highlight" || isToolbarEvent(event)) {
+    if (
+      !state.editing ||
+      (state.tool !== "highlight" && state.tool !== "comment") ||
+      isToolbarEvent(event)
+    ) {
       return;
     }
 
     var shouldComment = event.shiftKey;
     window.setTimeout(function () {
-      applySelectionHighlight(shouldComment);
+      if (state.tool === "comment") {
+        applySelectionComment();
+      } else {
+        applySelectionHighlight(shouldComment);
+      }
     }, 0);
+  }
+
+  function handlePointerDown(event) {
+    if (!state.editing || isToolbarEvent(event)) {
+      return;
+    }
+
+    var box = findCommentBox(event.target);
+    if (!box || event.button !== 0) {
+      return;
+    }
+
+    var startLeft = parseFloat(box.style.left || "0");
+    var startTop = parseFloat(box.style.top || "0");
+    state.commentDrag = {
+      box: box,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startLeft: startLeft,
+      startTop: startTop,
+      moved: false,
+      snapshotTaken: false,
+    };
+
+    window.addEventListener("pointermove", handleCommentDragMove, true);
+    window.addEventListener("pointerup", handleCommentDragEnd, true);
+  }
+
+  function handleCommentDragMove(event) {
+    var drag = state.commentDrag;
+    if (!drag || event.pointerId !== drag.pointerId) {
+      return;
+    }
+
+    var dx = event.clientX - drag.startX;
+    var dy = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) < 5) {
+      return;
+    }
+
+    if (!drag.snapshotTaken) {
+      pushUndoSnapshot();
+      drag.snapshotTaken = true;
+    }
+
+    drag.moved = true;
+    drag.box.classList.add("hx-comment-dragging");
+    drag.box.style.left = Math.max(0, drag.startLeft + dx) + "px";
+    drag.box.style.top = Math.max(0, drag.startTop + dy) + "px";
+    event.preventDefault();
+  }
+
+  function handleCommentDragEnd(event) {
+    var drag = state.commentDrag;
+    if (!drag || event.pointerId !== drag.pointerId) {
+      return;
+    }
+
+    window.removeEventListener("pointermove", handleCommentDragMove, true);
+    window.removeEventListener("pointerup", handleCommentDragEnd, true);
+    drag.box.classList.remove("hx-comment-dragging");
+
+    if (drag.moved) {
+      markDirty();
+    }
+
+    state.commentDrag = null;
   }
 
   function handleDocumentClick(event) {
@@ -549,20 +756,44 @@
       return;
     }
 
-    var mark = event.target.closest && event.target.closest("mark[data-hx-highlight]");
-    if (mark && mark.dataset.hxComment !== undefined) {
-      openCommentPopover(mark);
+    var annotation =
+      event.target.closest &&
+      event.target.closest("mark[data-hx-highlight], [data-hx-comment-anchor]");
+    if (annotation) {
+      var annotationId = annotation.dataset.hxId;
+      if (
+        annotation.matches("[data-hx-comment-anchor]") ||
+        state.tool === "comment" ||
+        (annotationId && findCommentBoxById(annotationId))
+      ) {
+        openCommentPopover(annotation);
+      }
       return;
     }
 
-    if (!toolbar.commentPopover.hidden && !mark) {
-      closeCommentPopover();
-    }
   }
 
   function handleKeydown(event) {
+    var activeCommentBox = findCommentBox(document.activeElement);
+    if (
+      activeCommentBox &&
+      event.key === "Backspace" &&
+      !activeCommentBox.textContent.trim()
+    ) {
+      var annotation = findAnnotationById(activeCommentBox.dataset.hxId);
+      if (annotation) {
+        event.preventDefault();
+        removeAnnotation(annotation);
+        return;
+      }
+    }
+
     if (event.key === "Escape") {
+      if (activeCommentBox) {
+        activeCommentBox.blur();
+      }
       closeCommentPopover();
+      closeHighlightsPanel();
       stopSampling();
       return;
     }
@@ -603,6 +834,7 @@
     state.editing = !!nextEditing;
     state.tool = state.editing ? "select" : "select";
     closeCommentPopover();
+    closeHighlightsPanel();
     stopSampling();
     refreshEditables();
 
@@ -638,6 +870,7 @@
     element.classList.add("hx-editor-editable");
     element.setAttribute("contenteditable", "true");
     element.setAttribute("spellcheck", "true");
+    setCommentBoxesEditable(true);
   }
 
   function disableEditable(element) {
@@ -646,6 +879,22 @@
     restoreAttribute(element, "spellcheck", element.dataset.hxPrevSpellcheck);
     delete element.dataset.hxPrevContenteditable;
     delete element.dataset.hxPrevSpellcheck;
+    setCommentBoxesEditable(false);
+  }
+
+  function setCommentBoxesEditable(enabled) {
+    Array.prototype.forEach.call(
+      getRoot().querySelectorAll("[data-hx-comment-box]"),
+      function (box) {
+        if (enabled) {
+          box.setAttribute("contenteditable", "true");
+          box.setAttribute("spellcheck", "true");
+        } else {
+          box.removeAttribute("contenteditable");
+          box.removeAttribute("spellcheck");
+        }
+      }
+    );
   }
 
   function restoreAttribute(element, attribute, value) {
@@ -689,66 +938,402 @@
     var color = colors[state.colorIndex];
     var mark = document.createElement("mark");
     mark.dataset.hxHighlight = color.name;
+    mark.dataset.hxId = createHighlightId();
     mark.style.background = color.pale;
     mark.style.color = "inherit";
 
     try {
+      pushUndoSnapshot();
       var fragment = range.extractContents();
       mark.appendChild(fragment);
       range.insertNode(mark);
       selection.removeAllRanges();
       markDirty();
+      renderHighlightsPanel();
 
       if (shouldComment) {
-        mark.dataset.hxComment = "";
-        openCommentPopover(mark);
+        createOrFocusCommentBox(mark);
       }
     } catch (error) {
       document.execCommand("HiliteColor", false, color.pale);
       selection.removeAllRanges();
       markDirty();
+      renderHighlightsPanel();
     }
   }
 
-  function openCommentPopover(mark) {
-    state.commentTarget = mark;
-    toolbar.commentInput.value = mark.dataset.hxComment || "";
-    toolbar.commentPopover.hidden = false;
-    repositionCommentPopover();
-    window.setTimeout(function () {
-      toolbar.commentInput.focus();
-    }, 0);
+  function applySelectionComment() {
+    var selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return;
+    }
+
+    var range = selection.getRangeAt(0);
+    if (!getRoot().contains(range.commonAncestorContainer)) {
+      return;
+    }
+
+    var anchor = document.createElement("span");
+    anchor.dataset.hxCommentAnchor = "";
+    anchor.dataset.hxId = createHighlightId();
+    anchor.dataset.hxComment = "";
+
+    try {
+      pushUndoSnapshot();
+      var fragment = range.extractContents();
+      anchor.appendChild(fragment);
+      range.insertNode(anchor);
+      selection.removeAllRanges();
+      createOrFocusCommentBox(anchor);
+      markDirty();
+      renderHighlightsPanel();
+    } catch (error) {}
+  }
+
+  function openCommentPopover(annotation) {
+    createOrFocusCommentBox(annotation);
   }
 
   function closeCommentPopover() {
-    if (!toolbar.commentPopover) {
-      return;
-    }
-
-    toolbar.commentPopover.hidden = true;
-    state.commentTarget = null;
   }
 
-  function repositionCommentPopover() {
-    if (
-      !toolbar.commentPopover ||
-      toolbar.commentPopover.hidden ||
-      !state.commentTarget
-    ) {
+  function createOrFocusCommentBox(annotation) {
+    var id = ensureAnnotationId(annotation);
+    var box = findCommentBoxById(id);
+    if (!box) {
+      pushUndoSnapshot();
+      box = document.createElement("div");
+      box.dataset.hxCommentBox = "";
+      box.dataset.hxId = id;
+      box.setAttribute("contenteditable", "true");
+      box.setAttribute("spellcheck", "true");
+      box.textContent = annotation.dataset.hxComment || "";
+      positionNewCommentBox(box, annotation);
+      getRoot().appendChild(box);
+    }
+
+    annotation.dataset.hxComment = box.textContent;
+    closeHighlightsPanel();
+    window.setTimeout(function () {
+      box.focus({ preventScroll: true });
+      placeCaretAtEnd(box);
+    }, 0);
+    markDirty();
+    renderHighlightsPanel();
+  }
+
+  function positionNewCommentBox(box, annotation) {
+    var rootRect = getRoot().getBoundingClientRect();
+    var rect = annotation.getBoundingClientRect();
+    var left = rect.right - rootRect.left + 14;
+    var top = rect.top - rootRect.top - 4;
+
+    if (left + 320 > rootRect.width) {
+      left = Math.max(0, rect.left - rootRect.left);
+      top = rect.bottom - rootRect.top + 10;
+    }
+
+    box.style.left = Math.max(0, left) + "px";
+    box.style.top = Math.max(0, top) + "px";
+  }
+
+  function findCommentBox(target) {
+    if (!(target instanceof Element)) {
+      return null;
+    }
+
+    return target.closest("[data-hx-comment-box]");
+  }
+
+  function findCommentBoxById(id) {
+    return getRoot().querySelector(
+      "[data-hx-comment-box][data-hx-id='" + cssEscape(id) + "']"
+    );
+  }
+
+  function syncCommentBoxToAnchor(box) {
+    var annotation = findAnnotationById(box.dataset.hxId);
+    if (!annotation) {
       return;
     }
 
-    var rect = state.commentTarget.getBoundingClientRect();
-    var width = Math.min(280, window.innerWidth - 28);
-    var left = Math.min(Math.max(14, rect.left), window.innerWidth - width - 14);
-    var top = rect.bottom + 10;
+    annotation.dataset.hxComment = box.textContent;
+  }
 
-    if (top + 150 > window.innerHeight) {
-      top = Math.max(14, rect.top - 150);
+  function syncAllCommentBoxesToAnchors() {
+    Array.prototype.forEach.call(
+      getRoot().querySelectorAll("[data-hx-comment-box]"),
+      syncCommentBoxToAnchor
+    );
+  }
+
+  function placeCaretAtEnd(element) {
+    var range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    var selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function toggleHighlightsPanel() {
+    if (toolbar.highlightsPanel.hidden) {
+      openHighlightsPanel();
+    } else {
+      closeHighlightsPanel();
+    }
+  }
+
+  function openHighlightsPanel() {
+    closeCommentPopover();
+    renderHighlightsPanel();
+    toolbar.highlightsPanel.hidden = false;
+    positionHighlightsPanel();
+    updateToolbar();
+  }
+
+  function closeHighlightsPanel() {
+    if (!toolbar.highlightsPanel) {
+      return;
     }
 
-    toolbar.commentPopover.style.left = left + "px";
-    toolbar.commentPopover.style.top = top + "px";
+    toolbar.highlightsPanel.hidden = true;
+    updateToolbar();
+  }
+
+  function positionHighlightsPanel() {
+    if (!toolbar.highlightsPanel || toolbar.highlightsPanel.hidden) {
+      return;
+    }
+
+    var width = Math.min(340, window.innerWidth - 28);
+    var left = Math.max(14, window.innerWidth - width - 36);
+    var top = Math.max(14, Math.min(96, window.innerHeight - 140));
+    toolbar.highlightsPanel.style.left = left + "px";
+    toolbar.highlightsPanel.style.top = top + "px";
+  }
+
+  function renderHighlightsPanel() {
+    if (!toolbar.highlightsList) {
+      return;
+    }
+
+    var annotations = getAnnotations();
+    if (!annotations.length) {
+      toolbar.highlightsList.innerHTML =
+        "<p class='empty-state'>No annotations in this document.</p>";
+      return;
+    }
+
+    toolbar.highlightsList.innerHTML = annotations
+      .map(function (annotation) {
+        var id = ensureAnnotationId(annotation);
+        var color = getAnnotationColor(annotation);
+        var comment = annotation.dataset.hxComment || "";
+        var typeLabel = annotation.matches("[data-hx-comment-anchor]")
+          ? "Comment"
+          : "Highlight";
+        return (
+          "<div class='highlight-row' data-highlight-id='" +
+          escapeHtml(id) +
+          "'>" +
+          "<span class='highlight-dot' style='background:" +
+          escapeHtml(color.solid) +
+          "'></span>" +
+          "<div>" +
+          "<p class='highlight-text'>" +
+          escapeHtml(typeLabel + ": " + trimSnippet(annotation.textContent, 84)) +
+          "</p>" +
+          (comment
+            ? "<p class='highlight-comment'>" +
+              escapeHtml(trimSnippet(comment, 96)) +
+              "</p>"
+            : "") +
+          "</div>" +
+          "<div class='row-actions'>" +
+          "<button type='button' data-highlight-focus title='Find highlight' aria-label='Find highlight'>" +
+          iconLocate() +
+          "</button>" +
+          "<button type='button' data-highlight-comment title='Comment' aria-label='Comment'>" +
+          iconPen() +
+          "</button>" +
+          "<button type='button' data-highlight-delete title='Remove highlight' aria-label='Remove highlight'>" +
+          iconTrash() +
+          "</button>" +
+          "</div>" +
+          "</div>"
+        );
+      })
+      .join("");
+
+    Array.prototype.forEach.call(
+      toolbar.highlightsList.querySelectorAll("[data-highlight-focus]"),
+      function (button) {
+        button.addEventListener("click", function () {
+          var annotation = findAnnotationById(button.closest("[data-highlight-id]").dataset.highlightId);
+          if (annotation) {
+            focusAnnotation(annotation);
+          }
+        });
+      }
+    );
+
+    Array.prototype.forEach.call(
+      toolbar.highlightsList.querySelectorAll("[data-highlight-comment]"),
+      function (button) {
+        button.addEventListener("click", function () {
+          var annotation = findAnnotationById(button.closest("[data-highlight-id]").dataset.highlightId);
+          if (annotation) {
+            openCommentPopover(annotation);
+          }
+        });
+      }
+    );
+
+    Array.prototype.forEach.call(
+      toolbar.highlightsList.querySelectorAll("[data-highlight-delete]"),
+      function (button) {
+        button.addEventListener("click", function () {
+          var annotation = findAnnotationById(button.closest("[data-highlight-id]").dataset.highlightId);
+          if (annotation) {
+            removeAnnotation(annotation);
+          }
+        });
+      }
+    );
+  }
+
+  function getHighlights() {
+    return Array.prototype.slice.call(
+      getRoot().querySelectorAll("mark[data-hx-highlight]")
+    );
+  }
+
+  function getAnnotations() {
+    return Array.prototype.slice.call(
+      getRoot().querySelectorAll(
+        "mark[data-hx-highlight], [data-hx-comment-anchor]"
+      )
+    );
+  }
+
+  function ensureAnnotationId(annotation) {
+    if (!annotation.dataset.hxId) {
+      annotation.dataset.hxId = createHighlightId();
+    }
+
+    return annotation.dataset.hxId;
+  }
+
+  function createHighlightId() {
+    return (
+      "hx-" +
+      Date.now().toString(36) +
+      "-" +
+      Math.random().toString(36).slice(2, 8)
+    );
+  }
+
+  function findAnnotationById(id) {
+    return getRoot().querySelector(
+      "mark[data-hx-highlight][data-hx-id='" +
+        cssEscape(id) +
+        "'], [data-hx-comment-anchor][data-hx-id='" +
+        cssEscape(id) +
+        "']"
+    );
+  }
+
+  function focusAnnotation(annotation) {
+    annotation.scrollIntoView({ block: "center", behavior: "smooth" });
+    openCommentPopover(annotation);
+  }
+
+  function removeAnnotation(annotation) {
+    pushUndoSnapshot();
+    var box = findCommentBoxById(annotation.dataset.hxId);
+    if (box) {
+      box.remove();
+    }
+
+    var parent = annotation.parentNode;
+    while (annotation.firstChild) {
+      parent.insertBefore(annotation.firstChild, annotation);
+    }
+    parent.removeChild(annotation);
+    parent.normalize();
+    closeCommentPopover();
+    markDirty();
+    renderHighlightsPanel();
+  }
+
+  function removeAllAnnotations() {
+    var annotations = getAnnotations();
+    if (!annotations.length) {
+      return;
+    }
+
+    pushUndoSnapshot();
+    annotations.forEach(function (annotation) {
+      var box = findCommentBoxById(annotation.dataset.hxId);
+      if (box) {
+        box.remove();
+      }
+
+      var parent = annotation.parentNode;
+      while (annotation.firstChild) {
+        parent.insertBefore(annotation.firstChild, annotation);
+      }
+      parent.removeChild(annotation);
+      parent.normalize();
+    });
+
+    closeCommentPopover();
+    markDirty();
+    renderHighlightsPanel();
+  }
+
+  function getAnnotationColor(annotation) {
+    if (annotation.matches("[data-hx-comment-anchor]")) {
+      return { solid: "#15aabf" };
+    }
+
+    var name = annotation.dataset.hxHighlight;
+    return (
+      colors.find(function (color) {
+        return color.name === name;
+      }) || { solid: annotation.style.background || "#15aabf" }
+    );
+  }
+
+  function trimSnippet(value, length) {
+    var text = String(value || "").replace(/\s+/g, " ").trim();
+    if (text.length <= length) {
+      return text;
+    }
+
+    return text.slice(0, Math.max(0, length - 1)).trim() + "…";
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function cssEscape(value) {
+    if (window.CSS && window.CSS.escape) {
+      return window.CSS.escape(value);
+    }
+
+    return String(value).replace(/'/g, "\\'");
+  }
+
+  function repositionOverlays() {
+    positionHighlightsPanel();
   }
 
   function startSampling() {
@@ -853,6 +1438,44 @@
     navigator.clipboard.writeText(text).catch(function () {});
   }
 
+  function pushUndoSnapshot() {
+    var root = getRoot();
+    if (!(root instanceof HTMLElement)) {
+      return;
+    }
+
+    var html = root.innerHTML;
+    if (state.undoStack[state.undoStack.length - 1] === html) {
+      return;
+    }
+
+    state.undoStack.push(html);
+    if (state.undoStack.length > state.maxUndo) {
+      state.undoStack.shift();
+    }
+
+    updateToolbar();
+  }
+
+  function undoLastChange() {
+    var root = getRoot();
+    var previous = state.undoStack.pop();
+
+    if (previous === undefined && state.previousSavedRootHtml) {
+      previous = state.previousSavedRootHtml;
+      state.previousSavedRootHtml = "";
+    }
+
+    if (previous === undefined || !(root instanceof HTMLElement)) {
+      return;
+    }
+
+    root.innerHTML = previous;
+    closeCommentPopover();
+    renderHighlightsPanel();
+    markDirty();
+  }
+
   function markDirty() {
     state.dirty = true;
     updateToolbar();
@@ -860,14 +1483,22 @@
     state.saveTimer = window.setTimeout(saveDraft, 450);
   }
 
-  function saveDraft() {
+  function saveDraft(html) {
     try {
-      localStorage.setItem(options.storageKey + ":draft", serializeDocument());
+      var nextHtml = html || serializeDocument();
+      var draftKey = options.storageKey + ":draft";
+      var previousDraft = localStorage.getItem(draftKey);
+      if (previousDraft && previousDraft !== nextHtml) {
+        localStorage.setItem(options.storageKey + ":previous-draft", previousDraft);
+      }
+      localStorage.setItem(draftKey, nextHtml);
     } catch (error) {}
   }
 
   function saveNow() {
     var html = serializeDocument();
+    var savedRootHtml = getRoot().innerHTML;
+    var previousSavedRootHtml = state.lastSavedRootHtml;
     var payload = {
       pathname: location.pathname,
       title: document.title,
@@ -899,11 +1530,16 @@
 
           return response;
         })
-      : Promise.resolve(saveDraft());
+      : Promise.resolve(saveDraft(html));
 
     return savePromise
       .then(function () {
+        if (previousSavedRootHtml !== savedRootHtml) {
+          state.previousSavedRootHtml = previousSavedRootHtml;
+        }
+        state.lastSavedRootHtml = savedRootHtml;
         state.dirty = false;
+        updateToolbar();
         updateStatus("saved", "Saved");
         document.dispatchEvent(
           new CustomEvent("hyperedit:save", { detail: payload })
@@ -967,6 +1603,18 @@
       }
     );
 
+    Array.prototype.forEach.call(
+      clone.querySelectorAll("[data-hx-comment-box]"),
+      function (box) {
+        box.removeAttribute("contenteditable");
+        box.removeAttribute("spellcheck");
+        box.classList.remove("hx-comment-dragging");
+        if (!box.getAttribute("class")) {
+          box.removeAttribute("class");
+        }
+      }
+    );
+
     return getDoctype() + clone.outerHTML;
   }
 
@@ -1000,11 +1648,21 @@
       var pressed =
         (tool === "edit" && state.editing) ||
         (tool === state.tool && tool !== "save") ||
-        (tool === "sample" && state.sampling);
+        (tool === "sample" && state.sampling) ||
+        (tool === "annotations" &&
+          toolbar.highlightsPanel &&
+          !toolbar.highlightsPanel.hidden);
       button.setAttribute("aria-pressed", String(pressed));
 
       if (tool !== "edit" && tool !== "save") {
         button.disabled = !state.editing;
+      }
+
+      if (tool === "undo") {
+        button.disabled =
+          !state.editing ||
+          !state.undoStack.length &&
+          !state.previousSavedRootHtml;
       }
     });
 
@@ -1042,12 +1700,16 @@
     document.removeEventListener("dblclick", handleDoubleClick, true);
     document.removeEventListener("focusin", handleFocusIn, true);
     document.removeEventListener("focusout", handleFocusOut, true);
+    document.removeEventListener("beforeinput", handleBeforeInput, true);
     document.removeEventListener("input", handleInput, true);
     document.removeEventListener("mouseup", handleMouseUp, true);
+    document.removeEventListener("pointerdown", handlePointerDown, true);
     document.removeEventListener("click", handleDocumentClick, true);
     document.removeEventListener("keydown", handleKeydown, true);
-    window.removeEventListener("resize", repositionCommentPopover);
-    window.removeEventListener("scroll", repositionCommentPopover, true);
+    window.removeEventListener("pointermove", handleCommentDragMove, true);
+    window.removeEventListener("pointerup", handleCommentDragEnd, true);
+    window.removeEventListener("resize", repositionOverlays);
+    window.removeEventListener("scroll", repositionOverlays, true);
 
     if (host) {
       host.remove();
@@ -1068,6 +1730,7 @@
       setEditing(false);
     },
     save: saveNow,
+    undo: undoLastChange,
     serialize: serializeDocument,
     refresh: refreshEditables,
     configure: function (nextOptions) {
