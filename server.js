@@ -1,8 +1,11 @@
+#!/usr/bin/env bun
+
 const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
-const rootDir = path.resolve(process.env.HYPERSPACE_ROOT || __dirname);
+const rootDir = path.resolve(process.env.HYPERSPACE_ROOT || process.cwd());
+const runtimeDir = __dirname;
 const port = Number(process.env.PORT || 5173);
 const hostname = process.env.HOST || "127.0.0.1";
 const hyperclayUrl =
@@ -118,22 +121,32 @@ function resolveProjectPath(pathname) {
 async function resolveStaticFile(pathname) {
   const filePath = resolveProjectPath(pathname);
 
-  if (!filePath) {
-    return null;
+  if (filePath) {
+    try {
+      const stat = await fs.stat(filePath);
+
+      if (stat.isDirectory()) {
+        return path.join(filePath, "index.html");
+      }
+
+      if (stat.isFile()) {
+        return filePath;
+      }
+    } catch (error) {}
   }
 
-  try {
-    const stat = await fs.stat(filePath);
+  if (pathname === "/hyperspace.js" || pathname === "/hyperspace.css") {
+    const runtimePath = path.join(runtimeDir, pathname.slice(1));
 
-    if (stat.isDirectory()) {
-      return path.join(filePath, "index.html");
-    }
+    try {
+      const stat = await fs.stat(runtimePath);
 
-    if (stat.isFile()) {
-      return filePath;
+      if (stat.isFile()) {
+        return runtimePath;
+      }
+    } catch (error) {
+      return null;
     }
-  } catch (error) {
-    return null;
   }
 
   return null;
@@ -194,7 +207,11 @@ function stripRuntime(html) {
     )
     .replace(/\s(?:editmode|pageowner|savestatus)=(["'])[^"']*\1/gi, "")
     .replace(
-      /\sdata-hs-(?:selected|draft|dragging|resizing|inline-editing|commit-bound)(?:=(["'])[^"']*\1)?/gi,
+      /(<li\b(?=[^>]*\bdata-hs-list-selected\b)[^>]*?)\stabindex=(["'])0\2/gi,
+      "$1"
+    )
+    .replace(
+      /\sdata-hs-(?:selected|draft|dragging|resizing|inline-editing|commit-bound|list-selected)(?:=(["'])[^"']*\1)?/gi,
       ""
     )
     .replace(/\smovable-dragging(?:=(["'])[^"']*\1)?/gi, "")

@@ -4,6 +4,7 @@ const path = require("node:path");
 
 const rootDir = path.resolve(__dirname, "..");
 const tempSaveFile = path.join(rootDir, "tmp-hyperspace-save.html");
+const tempArbitraryFile = path.join(rootDir, "tmp-hyperspace-arbitrary.html");
 const tempBackupDir = path.join(rootDir, "sites-versions", "tmp-hyperspace-save");
 
 function commentButton(page) {
@@ -30,7 +31,7 @@ async function stubPageSaves(page) {
 
 async function placeComment(page, text) {
   const host = page.locator(".section.split[data-hs-comment-host]").first();
-  const target = host.locator("p[editmode\\:contenteditable]").first();
+  const target = host.locator("p").first();
 
   await commentButton(page).click();
   await target.click({ position: { x: 24, y: 18 } });
@@ -51,29 +52,48 @@ async function placeComment(page, text) {
 
 test.afterEach(async () => {
   await fs.rm(tempSaveFile, { force: true });
+  await fs.rm(tempArbitraryFile, { force: true });
   await fs.rm(tempBackupDir, { recursive: true, force: true });
 });
 
-test("documentation pages load with injected Hyperspace runtime", async ({
+test("served HTML pages load with external Hyperspace runtime assets", async ({
   page,
+  request,
 }) => {
+  await fs.writeFile(
+    tempArbitraryFile,
+    [
+      "<!DOCTYPE html>",
+      '<html lang="en">',
+      "<head>",
+      '<meta charset="utf-8">',
+      "<title>Arbitrary HTML</title>",
+      "</head>",
+      "<body>",
+      "<main data-hs-comment-host>",
+      "<h1>Arbitrary external page</h1>",
+      "<p>This file was not authored as a Hyperspace doc.</p>",
+      "</main>",
+      "</body>",
+      "</html>",
+    ].join("\n"),
+    "utf8"
+  );
+
   const pages = [
-    { path: "/", heading: "HTML documents that can be marked up" },
-    { path: "/current-state.html", heading: "The prototype is retired" },
-    { path: "/phase2.html", heading: "Serve ordinary HTML" },
-    { path: "/plan.html", heading: "Build on Hyperclay" },
-    { path: "/comment-isolation.html", heading: "Comments are nearby HTML" },
-    {
-      path: "/hyperclay-local-server.html",
-      heading: "What Hyperclay Local's server does",
-    },
-    {
-      path: "/distributables.html",
-      heading: "What Hyperspace should ship",
-    },
+    { path: "/", heading: "Review any HTML file" },
+    { path: "/tmp-hyperspace-arbitrary.html", heading: "Arbitrary external page" },
   ];
 
   for (const docsPage of pages) {
+    const response = await request.get(docsPage.path);
+    const servedHtml = await response.text();
+
+    expect(response.ok()).toBe(true);
+    expect(servedHtml).toContain('<link rel="stylesheet" href="/hyperspace.css"');
+    expect(servedHtml).toContain('src="/hyperspace.js"');
+    expect(servedHtml).not.toContain("hs-toolbar");
+
     await page.goto(docsPage.path);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       docsPage.heading
@@ -90,152 +110,262 @@ test("documentation pages load with injected Hyperspace runtime", async ({
   }
 });
 
-test("editable regions use pencil badges instead of a global edit mode", async ({
+test("edit toolbar toggle controls item editing without badges", async ({
   page,
 }) => {
   await stubPageSaves(page);
   await page.goto("/");
 
-  const heading = page.locator("h1");
-  const badges = page.locator(".hs-edit-badge");
+  const editButton = page.locator("[data-hs-tool='edit']");
+  const heading = page.getByRole("heading", { level: 1 });
 
   await expect(page.locator("[data-hs-tool='select']")).toHaveCount(0);
-  await expect(page.locator("[data-hs-tool='edit']")).toHaveCount(0);
-  await expect(page.locator("main")).not.toHaveAttribute(
-    "contenteditable",
-    "true"
+  await expect(editButton).toHaveAttribute("aria-pressed", "false");
+  await expect(editButton).toHaveAttribute("data-hs-edit-state", "off");
+  await expect(editButton.locator("svg")).toHaveAttribute(
+    "data-lucide",
+    "pencil-off"
   );
-  await expect(heading).not.toHaveAttribute(
+  await expect(page.locator(".hs-edit-badge")).toHaveCount(0);
+  await expect(page.locator("main")).not.toHaveAttribute(
     "contenteditable",
     "true"
   );
   await expect(page.locator("html")).not.toHaveAttribute("editmode", "true");
 
-  await expect.poll(async () => await badges.count()).toBeGreaterThan(0);
-  await expect(badges.first()).toBeVisible();
-  await expect(badges.first().locator("svg")).toHaveAttribute(
-    "data-lucide",
-    "pencil"
-  );
+  await heading.click();
+  await expect(page.locator("[contenteditable='true']")).toHaveCount(0);
 
-  const badgeSize = await badges.first().evaluate((badge) => {
-    const badgeRect = badge.getBoundingClientRect();
-    const iconRect = badge.querySelector("svg").getBoundingClientRect();
+  await editButton.click();
+  await expect(editButton).toHaveAttribute("aria-pressed", "true");
+  await expect(editButton).toHaveAttribute("data-hs-edit-state", "on");
+  await expect(editButton.locator("svg")).toHaveAttribute("data-lucide", "pencil");
+  await expect(page.locator("html")).toHaveAttribute("data-hs-active-tool", "edit");
 
-    return {
-      badgeHeight: badgeRect.height,
-      badgeWidth: badgeRect.width,
-      iconHeight: iconRect.height,
-      iconWidth: iconRect.width,
-    };
-  });
-
-  expect(badgeSize.badgeWidth).toBe(24);
-  expect(badgeSize.badgeHeight).toBe(24);
-  expect(badgeSize.iconWidth).toBe(14);
-  expect(badgeSize.iconHeight).toBe(14);
-
-  const badgePlacement = await page.evaluate(() => {
-    const heading = document.querySelector("h1");
-    const badge = document.querySelector(".hs-edit-badge");
-    const headingRect = heading.getBoundingClientRect();
-    const badgeRect = badge.getBoundingClientRect();
-
-    return {
-      badgeLeft: badgeRect.left,
-      badgeRight: badgeRect.right,
-      badgeTop: badgeRect.top,
-      badgeBottom: badgeRect.bottom,
-      headingLeft: headingRect.left,
-      headingRight: headingRect.right,
-      headingTop: headingRect.top,
-      headingBottom: headingRect.bottom,
-    };
-  });
-
-  expect(
-    badgePlacement.badgeLeft >= badgePlacement.headingRight ||
-      badgePlacement.badgeRight <= badgePlacement.headingLeft
-  ).toBe(true);
-  expect(badgePlacement.badgeTop).toBeLessThanOrEqual(
-    badgePlacement.headingBottom
-  );
-  expect(badgePlacement.badgeBottom).toBeGreaterThanOrEqual(
-    badgePlacement.headingTop
-  );
-
-  await badges.first().click();
+  await heading.click();
   await expect(heading).toHaveAttribute("contenteditable", "true");
-  await expect(badges.first()).toBeHidden();
   await expect(page.locator("main")).not.toHaveAttribute(
     "contenteditable",
     "true"
   );
 
-  await page.mouse.click(24, 24);
-  await expect(heading).not.toHaveAttribute("contenteditable", "true");
+  await heading.fill("Edited through toolbar mode.");
+  await editButton.click();
+  await expect(editButton).toHaveAttribute("aria-pressed", "false");
+  await expect(editButton).toHaveAttribute("data-hs-edit-state", "off");
+  await expect(editButton.locator("svg")).toHaveAttribute(
+    "data-lucide",
+    "pencil-off"
+  );
+  await expect(page.locator("[contenteditable='true']")).toHaveCount(0);
+  await expect(page.locator("html")).not.toHaveAttribute(
+    "data-hs-active-tool",
+    "edit"
+  );
+
+  await page.getByText("Hyperspace adds an external review layer").click();
+  await expect(page.locator("[contenteditable='true']")).toHaveCount(0);
 });
 
-test("edit badges stay anchored during document scroll", async ({ page }) => {
+test("demo page exposes editable content and checklist state", async ({
+  page,
+}) => {
+  await stubPageSaves(page);
   await page.goto("/");
 
-  const badge = page.locator(".hs-edit-badge").first();
-  await expect(badge).toBeVisible();
+  const heading = page.getByRole("heading", { level: 1 });
+  const firstCheckbox = page.locator("input[type='checkbox']").first();
+  const firstChecklistItem = page.locator("tbody tr").first().locator("td").nth(1);
+  const editButton = page.locator("[data-hs-tool='edit']");
 
-  const before = await badge.evaluate((element) => ({
-    left: element.style.left,
-    top: element.style.top,
-  }));
+  await expect(firstCheckbox).toBeEnabled();
+  await expect(firstCheckbox).toHaveAttribute("checked", "");
+  await expect(page.locator(".hs-edit-badge")).toHaveCount(0);
 
-  await page.evaluate(() => window.scrollTo(0, 320));
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-  await page.evaluate(() => new Promise(requestAnimationFrame));
+  await heading.click();
+  await expect(page.locator("[contenteditable='true']")).toHaveCount(0);
 
-  const after = await badge.evaluate((element) => ({
-    left: element.style.left,
-    top: element.style.top,
-  }));
+  await firstCheckbox.click();
+  await expect(firstCheckbox).not.toHaveAttribute("checked", "");
 
-  expect(after).toEqual(before);
+  await editButton.click();
+  await expect(editButton).toHaveAttribute("aria-pressed", "true");
+
+  await heading.click();
+  await expect(heading).toHaveAttribute("contenteditable", "true");
+  await heading.fill("Review pages stay editable.");
+  await page.mouse.click(24, 24);
+
+  await firstChecklistItem.click();
+  await expect(firstChecklistItem).toHaveAttribute("contenteditable", "true");
+  await firstChecklistItem.fill("Toolbar state remains user-editable.");
+  await page.mouse.click(24, 24);
+
+  const html = await page.evaluate(() => window.Hyperspace.serialize());
+
+  expect(html).not.toContain("data-hs-editable-document");
+  expect(html).not.toContain("data-hs-active-tool");
+  expect(html).toContain("Review pages stay editable.");
+  expect(html).toContain("Toolbar state remains user-editable.");
+  expect(html).not.toContain("disabled");
+});
+
+test("comment tool works on editable checklist documents", async ({ page }) => {
+  await stubPageSaves(page);
+  await page.goto("/");
+
+  const main = page.locator("main");
+  const target = page.locator("tbody tr").first().locator("td").nth(1);
+
+  await commentButton(page).click();
+  await target.click({ position: { x: 20, y: 18 } });
+
+  const comment = main.locator("[data-hs-comment]").first();
+  const text = comment.locator("p");
+
+  await expect(comment).toBeVisible();
+  await expect(text).toBeFocused();
+
+  await page.keyboard.type("Checklist comment still works.");
+  await page.mouse.click(24, 24);
+
+  await expect(comment).not.toHaveAttribute("save-remove", "");
+  await expect(text).toHaveText("Checklist comment still works.");
+});
+
+test("editable lists use structured controls", async ({ page }) => {
+  await stubPageSaves(page);
+  await page.goto("/");
+
+  await page.evaluate(() => {
+    const shell = document.querySelector(".shell");
+
+    if (shell instanceof HTMLElement) {
+      shell.hidden = true;
+    }
+
+    const fixture = document.createElement("section");
+    fixture.innerHTML = [
+      '<ol id="list-control-fixture">',
+      "<li>Prepare the package.</li>",
+      "<li>Test the Hyperspace client.</li>",
+      "<li>Publish the artifact.</li>",
+      "</ol>",
+    ].join("");
+    document.body.append(fixture);
+  });
+
+  const list = page.locator("#list-control-fixture");
+  const items = list.locator("li");
+  const controls = page.locator(".hs-list-controls:visible").first();
+  const editButton = page.locator("[data-hs-tool='edit']");
+
+  await expect(items).toHaveCount(3);
+  await expect(page.locator(".hs-edit-badge")).toHaveCount(0);
+  await expect(page.locator(".hs-list-controls")).toHaveCount(0);
+
+  await editButton.click();
+  await expect(controls).toBeVisible();
+  await expect(
+    controls.locator("[data-hs-list-action='add'] svg")
+  ).toHaveAttribute("data-lucide", "plus");
+  await expect(
+    controls.locator("[data-hs-list-action='up'] svg")
+  ).toHaveAttribute("data-lucide", "arrow-up");
+  await expect(
+    controls.locator("[data-hs-list-action='down'] svg")
+  ).toHaveAttribute("data-lucide", "arrow-down");
+  await expect(
+    controls.locator("[data-hs-list-action='delete'] svg")
+  ).toHaveAttribute("data-lucide", "trash-2");
+
+  await items.nth(1).click();
+  await expect(items.nth(1)).toHaveAttribute("data-hs-list-selected", "");
+
+  await controls.locator("[data-hs-list-action='up']").click();
+  await expect(items.first()).toContainText("Test the Hyperspace client");
+
+  await controls.locator("[data-hs-list-action='add']").click();
+  await expect(items).toHaveCount(4);
+  await expect(items.nth(1)).toHaveAttribute("contenteditable", "true");
+
+  await items.nth(1).fill("New distributable package.");
+  await items.nth(1).evaluate((element) => element.blur());
+  await expect(items.nth(1)).toContainText("New distributable package.");
+
+  await items.nth(1).click();
+  await expect(items.nth(1)).toHaveAttribute("data-hs-list-selected", "");
+  await controls.locator("[data-hs-list-action='delete']").click();
+  await expect(items).toHaveCount(3);
+  await expect(list).not.toContainText("New distributable package.");
 });
 
 test("toolbar uses named Lucide icons", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.locator("[data-hs-tool='select']")).toHaveCount(0);
-  await expect(page.locator("[data-hs-tool='edit']")).toHaveCount(0);
+  await expect(page.locator("[data-hs-tool='edit'] svg")).toHaveAttribute(
+    "data-lucide",
+    "pencil-off"
+  );
   await expect(page.locator("[data-hs-tool='comment'] svg")).toHaveAttribute(
     "data-lucide",
     "message-square-plus"
   );
-  await expect(
-    page.locator(".hs-edit-badge").first().locator("svg")
-  ).toHaveAttribute("data-lucide", "pencil");
   await expect(page.locator("[data-hs-tool='save'] svg")).toHaveAttribute(
     "data-lucide",
     "save"
   );
+  await expect(page.locator(".hs-edit-badge")).toHaveCount(0);
 });
 
-test("double click edits an explicit element without whole-page editing", async ({
+test("save toasts use hard drive download icon", async ({ page }) => {
+  await page.goto("/");
+
+  await page.evaluate(() => {
+    const container = document.createElement("div");
+    container.className = "toast-container";
+    container.setAttribute("data-toast-theme", "");
+    container.innerHTML = [
+      '<div class="toast"><svg data-lucide="check"></svg>Saved</div>',
+      '<div class="toast"><svg data-lucide="alert-circle"></svg>Error</div>',
+    ].join("");
+    document.body.append(container);
+  });
+
+  await expect(
+    page.locator(".toast").filter({ hasText: "Saved" }).locator("svg")
+  ).toHaveAttribute("data-lucide", "hard-drive-download");
+  await expect(
+    page.locator(".toast").filter({ hasText: "Error" }).locator("svg")
+  ).toHaveAttribute("data-lucide", "alert-circle");
+});
+
+test("double click edits an item without whole-page editing", async ({
   page,
 }) => {
   await stubPageSaves(page);
   await page.goto("/");
 
-  const heading = page.locator("h1");
+  const editable = page.locator("details[open] p").first();
+  const editButton = page.locator("[data-hs-tool='edit']");
 
   await expect(page.locator("html")).not.toHaveAttribute("editmode", "true");
-  await heading.dblclick();
+  await editable.dblclick();
+  await expect(page.locator("[contenteditable='true']")).toHaveCount(0);
 
-  await expect(heading).toHaveAttribute("contenteditable", "true");
+  await editButton.click();
+  await expect(editButton).toHaveAttribute("aria-pressed", "true");
+  await editable.dblclick();
+
+  await expect(editable).toHaveAttribute("contenteditable", "true");
   await expect(page.locator("main")).not.toHaveAttribute(
     "contenteditable",
     "true"
   );
 
   await page.mouse.click(24, 24);
-  await expect(heading).not.toHaveAttribute("contenteditable", "true");
+  await expect(editable).not.toHaveAttribute("contenteditable", "true");
 });
 
 test("comment tool creates nearby durable HTML after clickaway", async ({
@@ -245,9 +375,30 @@ test("comment tool creates nearby durable HTML after clickaway", async ({
   await page.goto("/");
 
   const { comment, text } = await placeComment(page, "");
+  const draftAffordance = await text.evaluate((element) => {
+    const textStyle = getComputedStyle(element);
+    const beforeStyle = getComputedStyle(element, "::before");
+
+    return {
+      activeTool: document.documentElement.getAttribute("data-hs-active-tool"),
+      bodyCursor: getComputedStyle(document.body).cursor,
+      caretColor: textStyle.caretColor,
+      textCursor: textStyle.cursor,
+      beforeContent: beforeStyle.content,
+      beforeWidth: beforeStyle.width,
+      beforeBackground: beforeStyle.backgroundColor,
+    };
+  });
 
   await expect(comment).toHaveAttribute("save-remove", "");
   await expect(text).toBeFocused();
+  expect(draftAffordance.activeTool).toBe("comment");
+  expect(draftAffordance.bodyCursor).toBe("crosshair");
+  expect(draftAffordance.textCursor).toBe("text");
+  expect(draftAffordance.caretColor).toBe("rgb(224, 49, 49)");
+  expect(draftAffordance.beforeContent).toBe('""');
+  expect(draftAffordance.beforeWidth).toBe("2px");
+  expect(draftAffordance.beforeBackground).toBe("rgb(224, 49, 49)");
 
   await page.keyboard.type("Tighten this section.");
   await page.mouse.click(24, 24);
@@ -255,7 +406,7 @@ test("comment tool creates nearby durable HTML after clickaway", async ({
   await expect(comment).not.toHaveAttribute("save-remove", "");
   await expect(comment).toHaveAttribute("movable", "");
   await expect(text).toHaveText("Tighten this section.");
-  await expect(text).toHaveAttribute("editmode:contenteditable", "");
+  await expect(text).not.toHaveAttribute("editmode:contenteditable", "");
   await expect(text).not.toHaveAttribute("contenteditable", "true");
 });
 
@@ -264,7 +415,7 @@ test("comment tool stays armed after committing a comment", async ({ page }) => 
   await page.goto("/");
 
   const host = page.locator(".section.split[data-hs-comment-host]").first();
-  const target = host.locator("p[editmode\\:contenteditable]").first();
+  const target = host.locator("p").first();
   const { comment } = await placeComment(page, "First comment.");
 
   await expect(commentButton(page)).toHaveAttribute("aria-pressed", "true");
@@ -327,8 +478,7 @@ test("comments render as plain red autosized text", async ({ page }) => {
       "style",
       "transform: translate(0px, 0px); width: 159px; height: 525px; resize: both; overflow: hidden;"
     );
-    comment.innerHTML =
-      '<p editmode:contenteditable>Short automatic comment</p>';
+    comment.innerHTML = "<p>Short automatic comment</p>";
     document.body.append(comment);
 
     const computed = window.getComputedStyle(comment);
@@ -380,7 +530,6 @@ test("serialization strips runtime and preserves semantic comments", async ({
   expect(html).toContain("<!DOCTYPE html>");
   expect(html).toContain("data-hs-comment");
   expect(html).toContain("Persist this comment.");
-  expect(html).toContain("editmode:contenteditable");
   expect(html).toContain("movable");
   expect(html).toContain("transform: translate");
   expect(html).not.toContain("width: 111px");
@@ -391,6 +540,7 @@ test("serialization strips runtime and preserves semantic comments", async ({
   expect(html).not.toContain("Move comment");
   expect(html).not.toContain("tabindex");
   expect(html).not.toContain("data-hs-selected");
+  expect(html).not.toContain("data-hs-list-selected");
   expect(html).not.toContain("data-hs-draft");
   expect(html).not.toContain("data-hs-resizing");
   expect(html).not.toContain("movable-dragging");
@@ -398,7 +548,8 @@ test("serialization strips runtime and preserves semantic comments", async ({
   expect(html).not.toContain("inert-contenteditable");
   expect(html).not.toContain('editmode="true"');
   expect(html).not.toContain("option-visibility");
-  expect(html).not.toContain("hyperspace.js");
+  expect(html).not.toMatch(/<script\b[^>]*\bhyperspace\.js\b/i);
+  expect(html).not.toMatch(/<link\b[^>]*\bhyperspace\.css\b/i);
 });
 
 test("focus loss autosaves text changes without Hyperclay toast path", async ({
@@ -415,10 +566,11 @@ test("focus loss autosaves text changes without Hyperclay toast path", async ({
     };
   });
 
-  const heading = page.locator("h1");
+  const editable = page.locator("details[open] p").first();
 
-  await heading.dblclick();
-  await heading.fill("Autosaved review artifact");
+  await page.locator("[data-hs-tool='edit']").click();
+  await editable.dblclick();
+  await editable.fill("Autosaved review artifact");
   await page.mouse.click(24, 24);
 
   await expect
@@ -448,7 +600,7 @@ test("fallback save posts Hyperclay-compatible plain HTML", async ({ page }) => 
 
   await page.evaluate(() => window.Hyperspace.save());
 
-  expect(pageUrl).toContain("http://localhost");
+  expect(pageUrl).toMatch(/^http:\/\/(localhost|127\.0\.0\.1):/);
   expect(body).toContain("<!DOCTYPE html>");
   expect(body).not.toContain("hs-toolbar");
 });
@@ -476,7 +628,9 @@ test("server save endpoint writes clean html and creates a backup", async ({
       "</head>",
       "<body>",
       '<div class="hs-toolbar" data-hs-runtime save-remove></div>',
-      '<section data-hs-comment-host><aside data-hs-comment movable movable-dragging data-hs-color="red" tabindex="0" data-hs-selected data-hs-draft data-hs-resizing style="transform: translate(12px, 24px); width: 111px; height: 222px; resize: both; overflow: hidden;"><p editmode:contenteditable inert-contenteditable="null" contenteditable="true" data-hs-inline-editing data-hs-commit-bound>After</p></aside></section>',
+      '<div class="hs-list-controls" data-hs-runtime save-remove></div>',
+      '<ol><li data-hs-list-selected tabindex="0">First</li><li>Second</li></ol>',
+      '<section data-hs-comment-host><aside data-hs-comment movable movable-dragging data-hs-color="red" tabindex="0" data-hs-selected data-hs-draft data-hs-resizing style="transform: translate(12px, 24px); width: 111px; height: 222px; resize: both; overflow: hidden;"><p inert-contenteditable="null" contenteditable="true" data-hs-inline-editing data-hs-commit-bound>After</p></aside></section>',
       '<script type="module" src="/hyperspace.js" save-remove data-hs-runtime></script>',
       "</body>",
       "</html>",
@@ -498,11 +652,14 @@ test("server save endpoint writes clean html and creates a backup", async ({
   expect(saved).not.toContain("resize: both");
   expect(saved).not.toContain("overflow: hidden");
   expect(saved).not.toContain("hs-toolbar");
+  expect(saved).not.toContain("hs-list-controls");
   expect(saved).not.toContain("hyperspace.js");
   expect(saved).not.toContain("data-hs-comment-controls");
   expect(saved).not.toContain("data-hs-color");
   expect(saved).not.toContain("tabindex");
   expect(saved).not.toContain("data-hs-selected");
+  expect(saved).not.toContain("data-hs-list-selected");
+  expect(saved).not.toContain("data-hs-editable-list");
   expect(saved).not.toContain("data-hs-draft");
   expect(saved).not.toContain("data-hs-resizing");
   expect(saved).not.toContain("movable-dragging");

@@ -14,6 +14,9 @@ Planning decisions for this project must be authored as HTML documents.
   already known and whether the document will change a decision or next action.
 - Avoid documenting for its own sake.
 - Prefer existing project styling in `docs.css` for planning pages.
+- Checklists, plans, roadmaps, and design-decision documents are user-editable
+  review artifacts. Use ordinary semantic HTML as individual editable items and
+  live controls for checklist state instead of disabled status markup.
 - When migrating older planning material, remove the Markdown planning artifact
   and replace it with an HTML page linked from the project navigation.
 - Markdown is allowed only for agent or repository instruction files such as
@@ -29,8 +32,24 @@ this file needs to be updated before continuing.
 - Build Hyperspace as a layer over HyperclayJS. Do not reinvent Hyperclay's
   edit mode, snapshot, dirty-check, persistence, or save stack unless the user
   explicitly changes direction.
-- Base HTML is not contenteditable by default. Only elements intentionally
-  marked as editable should accept direct user edits.
+- Base HTML is not page-wide `contenteditable`. Hyperspace treats ordinary
+  document items as editable candidates, but only the single toolbar edit toggle
+  activates direct editing. When the toggle is off, the page behaves like normal
+  HTML and commenting still works.
+- Do not flood dense structured content with one persistent edit affordance per
+  child. There are no per-element edit badges. The edit toolbar button shows a
+  slashed or blocked pencil when edit mode is off and a normal pencil when it is
+  on.
+- Use ordinary semantic elements as individual edit targets. Lists get special
+  add, delete, reorder, and item-edit rules in edit mode; broad wrappers should
+  not become a single editable page region.
+- Match edit affordances to the content structure. Use direct text editing for
+  prose-like content. Use structured controls for structured content: lists need
+  add, delete, and reorder operations; tables need row, column, and cell
+  operations; repeated cards need add, remove, and reorder operations; media
+  needs replace and metadata controls; links/buttons need label and target or
+  action controls; form-like content needs option/schema controls; code/config
+  needs validated editor behavior.
 - Prefer reusing Hyperclay Local's server core without the Electron app for
   production/local hosting. A small project-local server is acceptable as a
   compatibility shim for tests, prototyping, and runtime-injection experiments,
@@ -42,8 +61,9 @@ this file needs to be updated before continuing.
 - Optimize the product around agent-authored HTML artifacts for review. Users
   need basic, robust review tools on top of those artifacts, not a general
   purpose website editor.
-- Keep the app UI close to the visual language in `design-doc.svg` unless the
-  user explicitly changes direction.
+- Keep Hyperspace's toolbar, interactive controls, toast styling, and runtime
+  CSS in external runtime assets. Artifact HTML may own its document styling,
+  but should not embed Hyperspace application chrome or runtime CSS.
 - Store basic comments as nearby HTML elements inside the closest reasonable
   document container selected by the user's first click. Do not attach basic
   comments to a specific target object unless the user asks for targeted
@@ -52,13 +72,14 @@ this file needs to be updated before continuing.
 - Keep basic comment UI low-intrusion: no border, no background, only positioned
   plain red text set in Excalifont, with no text shadow or decorative contrast
   effects. Comments should automatically size to their text; do not add manual
-  resize boxes or persist fixed comment width/height. Single click focuses a
-  comment, holding and dragging moves it, double click edits the text, and
-  keyboard deletion removes a focused comment.
-- Do not add visible select or edit tools to the toolbar. Idle selection is the
-  default runtime state, comments are the explicit tool, and editable document
-  regions should advertise themselves with small well-sized edit indicators
-  over the editable component.
+  resize boxes or persist fixed comment width/height. The armed comment tool
+  must visibly change the page cursor, and empty draft comments must still have
+  a visible caret footprint so creating a new comment is apparent. Single click
+  focuses a comment, holding and dragging moves it, double click edits the text,
+  and keyboard deletion removes a focused comment.
+- Do not add a visible select tool to the toolbar. Idle selection is the default
+  runtime state. The toolbar has a single edit toggle, a comment tool, and save;
+  comments remain available independently of edit mode.
 - Save text changes on focus loss. Autosaves should be quiet and must not show
   Hyperclay toast/popup UI; visible save feedback is reserved for manual saves.
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hyperspace HTML Artifacts"
+  short_description: "Create and reconcile reviewable HTML artifacts"
+  default_prompt: "Use $hyperspace-html-artifacts to create a reviewable HTML artifact for this project."

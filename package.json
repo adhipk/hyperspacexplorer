@@ -1,12 +1,37 @@
 {
-  "name": "hyperspacexplorer-hyperspace",
+  "name": "hyperspace-html-review",
   "version": "0.1.0",
-  "private": true,
+  "description": "Review agent-authored HTML artifacts with nearby comments, targeted edits, and local saves.",
+  "license": "UNLICENSED",
   "type": "commonjs",
+  "browser": "hyperspace.js",
+  "style": "hyperspace.css",
+  "bin": {
+    "hyperspace-serve": "./server.js"
+  },
+  "files": [
+    "hyperspace.js",
+    "hyperspace.css",
+    "server.js",
+    "skills/hyperspace-html-artifacts/SKILL.md",
+    "skills/hyperspace-html-artifacts/agents/openai.yaml"
+  ],
+  "keywords": [
+    "html",
+    "review",
+    "annotations",
+    "hyperclay",
+    "codex-skill"
+  ],
   "scripts": {
-    "check": "node --check hyperspace.js && node --check server.js && bun run typecheck",
+    "check": "node --check hyperspace.js && node --check server.js && node --check scripts/smoke-distribution.js && node --check scripts/smoke-hyperclay-local-core.js && node --check scripts/dogfood-skill-review-loop.js && node --check scripts/verify-agent-config-boundary.js && node --check scripts/verify-release.js && bun scripts/verify-agent-config-boundary.js && bun run typecheck",
+    "dogfood:skill": "bun scripts/dogfood-skill-review-loop.js",
+    "pack:dry": "bun pm pack --dry-run",
+    "release:verify": "bun scripts/verify-release.js",
     "serve": "bun server.js",
     "serve:python": "python3 -m http.server 5173 --bind 127.0.0.1",
+    "smoke:distribution": "bun scripts/smoke-distribution.js",
+    "smoke:hyperclay-core": "bun scripts/smoke-hyperclay-local-core.js",
     "test": "playwright test",
     "typecheck": "tsc -p tsconfig.json"
   },

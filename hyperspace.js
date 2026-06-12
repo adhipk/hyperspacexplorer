@@ -8,7 +8,7 @@
   }
 
   /**
-   * @typedef {"comment"} ToolType
+   * @typedef {"edit" | "comment"} ToolType
    * @typedef {"idle" | "editingComment" | "editingText" | "draggingComment"} InteractionType
    * @typedef {{
    *   activeTool: { type: ToolType | null, locked: boolean, lastActiveTool: ToolType | null },
@@ -37,12 +37,16 @@
   /** @type {Map<string, Element>} */
   var elementsById = new Map();
   var nextElementId = 1;
-  /** @type {Map<HTMLElement, HTMLButtonElement>} */
-  var editBadges = new Map();
+  var editableItemSelector =
+    "h1,h2,h3,h4,h5,h6,p,li,td,th,summary,figcaption,dt,dd,caption";
+  var editableItemQuery = editableItemSelector;
+  var editableListSelector = "ol,ul,[data-hs-editable-list]";
+  /** @type {Map<HTMLElement, HTMLElement>} */
+  var listControls = new Map();
   /** @type {number | null} */
-  var editBadgeFrame = null;
+  var listControlFrame = null;
   /** @type {MutationObserver | null} */
-  var editBadgeObserver = null;
+  var toastObserver = null;
 
   /** @type {AppState} */
   var state = {
@@ -118,8 +122,7 @@
    */
   function editableForId(id) {
     var element = elementForId(id);
-    return element instanceof HTMLElement &&
-      element.matches("[editmode\\:contenteditable]")
+    return element instanceof HTMLElement && isEditableElement(element)
       ? element
       : null;
   }
@@ -137,7 +140,7 @@
       ...current,
       activeTool: {
         type: nextTool,
-        locked: nextTool === "comment",
+        locked: nextTool === "comment" || nextTool === "edit",
         lastActiveTool:
           current.activeTool.type === nextTool
             ? current.activeTool.lastActiveTool
@@ -266,10 +269,18 @@
     }
 
     updateToolbarState();
+
+    if (previous.activeTool.type !== next.activeTool.type) {
+      if (next.activeTool.type !== "edit") {
+        clearListSelection();
+      }
+
+      hydrateEditableLists();
+    }
   }
 
   function toggleEditMode() {
-    hydrateEditableBadges();
+    setTool("edit");
   }
 
   /** @param {ToolType} tool */
@@ -279,23 +290,53 @@
 
   function updateToolbarState() {
     var toolbar = document.querySelector(".hs-toolbar");
+    var activeTool = state.activeTool.type;
+
+    if (activeTool) {
+      document.documentElement.setAttribute("data-hs-active-tool", activeTool);
+    } else {
+      document.documentElement.removeAttribute("data-hs-active-tool");
+    }
 
     if (!toolbar) {
       return;
     }
 
+    var editButton = toolbar.querySelector("[data-hs-tool='edit']");
+    var editActive = activeTool === "edit";
+
+    if (editButton) {
+      var editState = editActive ? "on" : "off";
+      editButton.setAttribute("aria-pressed", String(editActive));
+      editButton.setAttribute(
+        "aria-label",
+        editActive ? "Edit mode on" : "Edit mode off"
+      );
+      editButton.setAttribute("title", editActive ? "Edit mode on" : "Edit mode off");
+
+      if (editButton.getAttribute("data-hs-edit-state") !== editState) {
+        editButton.setAttribute("data-hs-edit-state", editState);
+        editButton.innerHTML = icon(editActive ? "edit" : "edit-off");
+      }
+    }
+
     toolbar
       .querySelector("[data-hs-tool='comment']")
-      ?.setAttribute("aria-pressed", String(state.activeTool.type === "comment"));
+      ?.setAttribute("aria-pressed", String(activeTool === "comment"));
   }
 
-  /** @param {"edit" | "comment" | "save"} name */
+  /** @param {"edit" | "edit-off" | "comment" | "save" | "save-toast" | "plus" | "arrow-up" | "arrow-down" | "trash-2"} name */
   function icon(name) {
     var icons = {
       edit: {
         lucide: "pencil",
         paths:
           '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path>',
+      },
+      "edit-off": {
+        lucide: "pencil-off",
+        paths:
+          '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path><path d="m3 3 18 18"></path>',
       },
       comment: {
         lucide: "message-square-plus",
@@ -306,6 +347,30 @@
         lucide: "save",
         paths:
           '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"></path><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"></path><path d="M7 3v4a1 1 0 0 0 1 1h7"></path>',
+      },
+      "save-toast": {
+        lucide: "hard-drive-download",
+        paths:
+          '<path d="M12 2v8"></path><path d="m16 6-4 4-4-4"></path><rect width="20" height="8" x="2" y="14" rx="2"></rect><path d="M6 18h.01"></path><path d="M10 18h.01"></path>',
+      },
+      plus: {
+        lucide: "plus",
+        paths: '<path d="M5 12h14"></path><path d="M12 5v14"></path>',
+      },
+      "arrow-up": {
+        lucide: "arrow-up",
+        paths:
+          '<path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path>',
+      },
+      "arrow-down": {
+        lucide: "arrow-down",
+        paths:
+          '<path d="M12 5v14"></path><path d="m19 12-7 7-7-7"></path>',
+      },
+      "trash-2": {
+        lucide: "trash-2",
+        paths:
+          '<path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path>',
       },
     };
     var iconData = icons[name];
@@ -332,6 +397,9 @@
     toolbar.setAttribute("aria-label", "Hyperspace tools");
     toolbar.innerHTML = [
       '<div class="hs-toolbar-group" role="group" aria-label="Tools">',
+      '<button type="button" data-hs-tool="edit" data-hs-edit-state="off" aria-label="Edit mode off" title="Edit mode off" aria-pressed="false">' +
+        icon("edit-off") +
+        "</button>",
       '<button type="button" data-hs-tool="comment" aria-label="Comment" title="Comment" aria-pressed="false">' +
         icon("comment") +
         "</button>",
@@ -344,128 +412,436 @@
     document.body.append(toolbar);
   }
 
-  /** @param {HTMLElement} element */
-  function shouldBadgeEditable(element) {
-    return !element.closest("[data-hs-comment], [data-hs-runtime]");
+  /**
+   * @param {Element} toast
+   * @returns {boolean}
+   */
+  function isSaveToast(toast) {
+    return /\bsaved\b/i.test(toast.textContent || "");
   }
 
-  /** @param {HTMLElement} editable */
-  function createEditBadge(editable) {
-    var badge = document.createElement("button");
+  /** @param {Document | Element=} root */
+  function syncSaveToastIcons(root) {
+    (root || document)
+      .querySelectorAll(".toast-container[data-toast-theme] .toast, .toast")
+      .forEach(function (toast) {
+        if (!(toast instanceof HTMLElement) || !isSaveToast(toast)) {
+          return;
+        }
 
-    badge.type = "button";
-    badge.className = "hs-edit-badge";
-    badge.setAttribute("data-hs-runtime", "");
-    badge.setAttribute("save-remove", "");
-    badge.setAttribute("aria-label", "Edit text");
-    badge.setAttribute("title", "Edit text");
-    badge.innerHTML = icon("edit");
+        var existingIcon = toast.querySelector("svg");
 
-    badge.addEventListener("pointerdown", function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-    });
-    badge.addEventListener("click", function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      beginInlineEdit(editable);
-    });
+        if (
+          existingIcon?.getAttribute("data-lucide") === "hard-drive-download"
+        ) {
+          return;
+        }
 
-    document.body.append(badge);
-    editBadges.set(editable, badge);
-    return badge;
-  }
-
-  function hydrateEditableBadges() {
-    /** @type {Set<HTMLElement>} */
-    var currentEditables = new Set();
-
-    document
-      .querySelectorAll("[editmode\\:contenteditable]")
-      .forEach(function (element) {
-        if (element instanceof HTMLElement && shouldBadgeEditable(element)) {
-          currentEditables.add(element);
-
-          if (!editBadges.has(element)) {
-            createEditBadge(element);
-          }
+        if (existingIcon) {
+          existingIcon.outerHTML = icon("save-toast");
+        } else {
+          toast.insertAdjacentHTML("afterbegin", icon("save-toast"));
         }
       });
-
-    editBadges.forEach(function (badge, editable) {
-      if (!editable.isConnected || !currentEditables.has(editable)) {
-        badge.remove();
-        editBadges.delete(editable);
-      }
-    });
-
-    queueEditBadgePositioning();
   }
 
-  function observeEditableBadges() {
-    if (editBadgeObserver || typeof MutationObserver === "undefined") {
+  function observeSaveToasts() {
+    if (toastObserver || typeof MutationObserver === "undefined") {
       return;
     }
 
-    editBadgeObserver = new MutationObserver(function () {
-      hydrateEditableBadges();
+    toastObserver = new MutationObserver(function (mutations) {
+      mutations.forEach(function (mutation) {
+        mutation.addedNodes.forEach(function (node) {
+          if (node instanceof Element) {
+            syncSaveToastIcons(node);
+          }
+        });
+      });
     });
-    editBadgeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["editmode:contenteditable"],
-      childList: true,
-      subtree: true,
-    });
+    toastObserver.observe(document.body, { childList: true, subtree: true });
+    syncSaveToastIcons();
   }
 
-  function queueEditBadgePositioning() {
-    if (editBadgeFrame !== null) {
-      window.cancelAnimationFrame(editBadgeFrame);
+  /** @param {HTMLElement} element */
+  function isEditableItemElement(element) {
+    if (
+      !element.matches(editableItemSelector) ||
+      element.closest("[data-hs-comment], [data-hs-runtime], pre, code, script, style")
+    ) {
+      return false;
     }
 
-    editBadgeFrame = window.requestAnimationFrame(positionEditBadges);
+    if (
+      element.matches("td,th") &&
+      element.querySelector("input, button, select, textarea")
+    ) {
+      return false;
+    }
+
+    return true;
   }
 
-  function positionEditBadges() {
-    editBadgeFrame = null;
+  /** @param {HTMLElement} element */
+  function isEditableElement(element) {
+    return (
+      element.matches("[editmode\\:contenteditable]") ||
+      isEditableItemElement(element)
+    );
+  }
 
-    editBadges.forEach(function (badge, editable) {
-      if (!editable.isConnected) {
-        badge.remove();
-        editBadges.delete(editable);
+   /**
+   * @param {string | Element | Document | Element[]} selectorOrElements
+   * @param {string | Element | Document | Element[]=} context
+   * @returns {Array<Element | Document>}
+   */
+  function allElements(selectorOrElements, context) {
+    var hyperclayAll =
+      typeof runtimeWindow.hyperclay?.All === "function"
+        ? runtimeWindow.hyperclay.All
+        : typeof runtimeWindow.All === "function"
+          ? runtimeWindow.All
+          : null;
+
+    if (hyperclayAll) {
+      try {
+        return Array.from(
+          context
+            ? hyperclayAll(selectorOrElements, context)
+            : hyperclayAll(selectorOrElements)
+        ).filter(function (element) {
+          return element instanceof Element;
+        });
+      } catch (error) {
+        console.warn("Hyperspace All query failed; using native query fallback.", error);
+      }
+    }
+
+    if (typeof selectorOrElements === "string") {
+      var roots = context ? allElements(context) : [document];
+
+      return roots.flatMap(function (root) {
+        if (!(root instanceof Element || root instanceof Document)) {
+          return [];
+        }
+
+        var matches =
+          root instanceof Element && root.matches(selectorOrElements)
+            ? [root]
+            : [];
+
+        return matches.concat(Array.from(root.querySelectorAll(selectorOrElements)));
+      });
+    }
+
+    if (selectorOrElements instanceof Element || selectorOrElements instanceof Document) {
+      return [selectorOrElements];
+    }
+
+    if (Array.isArray(selectorOrElements)) {
+      return selectorOrElements.filter(function (element) {
+        return element instanceof Element;
+      });
+    }
+
+    return [];
+  }
+
+  /** @param {Element | null} target */
+  function editableTargetFor(target) {
+    if (!target) {
+      return null;
+    }
+
+    var explicit = target.closest("[editmode\\:contenteditable]");
+
+    if (explicit instanceof HTMLElement) {
+      return explicit;
+    }
+
+    var itemEditable = target.closest(editableItemSelector);
+
+    return itemEditable instanceof HTMLElement &&
+      isEditableItemElement(itemEditable)
+      ? itemEditable
+      : null;
+  }
+
+  /** @param {Element | null} target */
+  function editableListItemForTarget(target) {
+    var item = target?.closest("li");
+    var list = item?.parentElement;
+
+    return item instanceof HTMLElement &&
+      list instanceof HTMLElement &&
+      isEditableList(list)
+      ? item
+      : null;
+  }
+
+  /** @param {HTMLElement} list */
+  function isEditableList(list) {
+    return (
+      list.matches(editableListSelector) &&
+      Boolean(list.querySelector(":scope > li")) &&
+      !list.closest("[data-hs-comment], [data-hs-runtime], pre, code, script, style, nav")
+    );
+  }
+
+  /** @param {HTMLElement} list */
+  function selectedListItem(list) {
+    var selected = list.querySelector("[data-hs-list-selected]");
+    return selected instanceof HTMLElement ? selected : null;
+  }
+
+  /** @param {HTMLElement} list */
+  function firstListItem(list) {
+    var item = list.querySelector(":scope > li");
+    return item instanceof HTMLElement ? item : null;
+  }
+
+  /** @param {HTMLElement | null} item */
+  function selectListItem(item) {
+    var list = item?.parentElement;
+
+    if (!(item instanceof HTMLElement) || !(list instanceof HTMLElement)) {
+      return;
+    }
+
+    list
+      .querySelectorAll(":scope > li[data-hs-list-selected]")
+      .forEach(function (existing) {
+        existing.removeAttribute("data-hs-list-selected");
+        existing.removeAttribute("tabindex");
+      });
+
+    item.setAttribute("data-hs-list-selected", "");
+    item.setAttribute("tabindex", "0");
+    item.focus({ preventScroll: true });
+    updateListControlState(list);
+  }
+
+  function clearListSelection() {
+    document
+      .querySelectorAll("[data-hs-list-selected]")
+      .forEach(function (item) {
+        item.removeAttribute("data-hs-list-selected");
+        item.removeAttribute("tabindex");
+      });
+  }
+
+  /** @param {HTMLElement} list */
+  function updateListControlState(list) {
+    var controls = listControls.get(list);
+    var selected = selectedListItem(list);
+
+    if (!controls) {
+      return;
+    }
+
+    var hasPrevious = Boolean(selected?.previousElementSibling);
+    var hasNext = Boolean(selected?.nextElementSibling);
+
+    controls
+      .querySelector("[data-hs-list-action='up']")
+      ?.toggleAttribute("disabled", !hasPrevious);
+    controls
+      .querySelector("[data-hs-list-action='down']")
+      ?.toggleAttribute("disabled", !hasNext);
+    controls
+      .querySelector("[data-hs-list-action='delete']")
+      ?.toggleAttribute("disabled", !selected);
+  }
+
+  /**
+   * @param {HTMLElement} list
+   * @param {string} action
+   */
+  function runListAction(list, action) {
+    var selected = selectedListItem(list) || firstListItem(list);
+
+    if (selected) {
+      selectListItem(selected);
+    }
+
+    if (action === "add") {
+      var item = document.createElement("li");
+      item.textContent = "New item";
+
+      if (selected?.nextSibling) {
+        list.insertBefore(item, selected.nextSibling);
+      } else {
+        list.append(item);
+      }
+
+      selectListItem(item);
+      beginInlineEdit(item, { selectAll: true });
+      queueListControlPositioning();
+      return;
+    }
+
+    if (!selected) {
+      return;
+    }
+
+    if (action === "up" && selected.previousElementSibling) {
+      list.insertBefore(selected, selected.previousElementSibling);
+      queueAutosave();
+    }
+
+    if (action === "down" && selected.nextElementSibling) {
+      list.insertBefore(selected.nextElementSibling, selected);
+      queueAutosave();
+    }
+
+    if (action === "delete") {
+      var nextSelection =
+        selected.nextElementSibling || selected.previousElementSibling;
+
+      selected.remove();
+
+      if (nextSelection instanceof HTMLElement) {
+        selectListItem(nextSelection);
+      } else {
+        updateListControlState(list);
+      }
+
+      queueAutosave();
+    }
+
+    updateListControlState(list);
+    queueListControlPositioning();
+  }
+
+  /** @param {HTMLElement} list */
+  function createListControls(list) {
+    var controls = document.createElement("div");
+
+    controls.className = "hs-list-controls";
+    controls.setAttribute("data-hs-runtime", "");
+    controls.setAttribute("save-remove", "");
+    controls.setAttribute("role", "toolbar");
+    controls.setAttribute("aria-label", "List tools");
+    controls.innerHTML = [
+      '<button type="button" data-hs-list-action="add" aria-label="Add list item" title="Add list item">' +
+        icon("plus") +
+        "</button>",
+      '<button type="button" data-hs-list-action="up" aria-label="Move item up" title="Move item up">' +
+        icon("arrow-up") +
+        "</button>",
+      '<button type="button" data-hs-list-action="down" aria-label="Move item down" title="Move item down">' +
+        icon("arrow-down") +
+        "</button>",
+      '<button type="button" data-hs-list-action="delete" aria-label="Delete item" title="Delete item">' +
+        icon("trash-2") +
+        "</button>",
+    ].join("");
+
+    controls.addEventListener("pointerdown", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    controls.addEventListener("click", function (event) {
+      var target = getClickTarget(event);
+      var button = target?.closest("[data-hs-list-action]");
+
+      if (!(button instanceof HTMLElement)) {
         return;
       }
 
-      if (editable.hasAttribute("data-hs-inline-editing")) {
-        badge.hidden = true;
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (button.hasAttribute("disabled")) {
         return;
       }
 
-      var rect = editable.getBoundingClientRect();
+      runListAction(list, button.dataset.hsListAction || "");
+    });
+
+    document.body.append(controls);
+    listControls.set(list, controls);
+    updateListControlState(list);
+    return controls;
+  }
+
+  function hydrateEditableLists() {
+    /** @type {Set<HTMLElement>} */
+    var currentLists = new Set();
+
+    if (state.activeTool.type !== "edit") {
+      listControls.forEach(function (controls) {
+        controls.remove();
+      });
+      listControls.clear();
+      return;
+    }
+
+    allElements(editableListSelector).forEach(function (list) {
+      if (list instanceof HTMLElement && isEditableList(list)) {
+        currentLists.add(list);
+
+        if (!listControls.has(list)) {
+          createListControls(list);
+        }
+
+        updateListControlState(list);
+      }
+    });
+
+    listControls.forEach(function (controls, list) {
+      if (!list.isConnected || !currentLists.has(list)) {
+        controls.remove();
+        listControls.delete(list);
+      }
+    });
+
+    queueListControlPositioning();
+  }
+
+  function queueListControlPositioning() {
+    if (listControlFrame !== null) {
+      window.cancelAnimationFrame(listControlFrame);
+    }
+
+    listControlFrame = window.requestAnimationFrame(positionListControls);
+  }
+
+  function positionListControls() {
+    listControlFrame = null;
+
+    listControls.forEach(function (controls, list) {
+      if (!list.isConnected) {
+        controls.remove();
+        listControls.delete(list);
+        return;
+      }
+
+      var rect = list.getBoundingClientRect();
 
       if (rect.width <= 0 || rect.height <= 0) {
-        badge.hidden = true;
+        controls.hidden = true;
         return;
       }
 
-      var badgeSize = 24;
       var inset = 4;
-      var gap = 6;
+      var gap = 8;
+      var controlWidth = controls.offsetWidth || 136;
       var viewportLeft = window.scrollX;
       var viewportRight = window.scrollX + window.innerWidth;
       var rightSide = rect.right + window.scrollX + gap;
-      var leftSide = rect.left + window.scrollX - badgeSize - gap;
+      var leftSide = rect.left + window.scrollX - controlWidth - gap;
       var left =
-        rightSide + badgeSize <= viewportRight - inset
+        rightSide + controlWidth <= viewportRight - inset
           ? rightSide
           : leftSide >= viewportLeft + inset
             ? leftSide
-            : Math.max(viewportLeft + inset, viewportRight - badgeSize - inset);
-      var top = rect.top + window.scrollY + Math.max(0, (rect.height - badgeSize) / 2);
+            : Math.max(viewportLeft + inset, viewportRight - controlWidth - inset);
+      var top = rect.top + window.scrollY;
 
-      badge.hidden = false;
-      badge.style.left = Math.round(left) + "px";
-      badge.style.top = Math.round(Math.max(top, inset)) + "px";
+      controls.hidden = false;
+      controls.style.left = Math.round(left) + "px";
+      controls.style.top = Math.round(Math.max(top, inset)) + "px";
     });
   }
 
@@ -619,7 +995,9 @@
 
   /** @param {HTMLElement} comment */
   function getCommentText(comment) {
-    var text = comment.querySelector("[editmode\\:contenteditable]");
+    var text =
+      comment.querySelector(":scope > p") ||
+      comment.querySelector("[editmode\\:contenteditable]");
     return text instanceof HTMLElement ? text : null;
   }
 
@@ -806,7 +1184,6 @@
     send({ type: "inline.edit.started", editableId: idForElement(element) });
     element.setAttribute("contenteditable", "true");
     element.setAttribute("data-hs-inline-editing", "");
-    queueEditBadgePositioning();
     focusEditableText(element, options);
 
     if (options?.selectAll) {
@@ -825,7 +1202,7 @@
           element.removeAttribute("contenteditable");
           element.removeAttribute("data-hs-inline-editing");
           element.removeAttribute("data-hs-commit-bound");
-          queueEditBadgePositioning();
+          queueListControlPositioning();
           send({ type: "interaction.finished" });
           queueAutosave();
         },
@@ -850,7 +1227,6 @@
     comment.style.transform =
       "translate(" + Math.round(position.x) + "px, " + Math.round(position.y) + "px)";
 
-    text.setAttribute("editmode:contenteditable", "");
     comment.append(text);
     host.append(comment);
     idForElement(comment);
@@ -866,6 +1242,11 @@
 
     if (toolButton instanceof HTMLElement) {
       suppressNextCommentPlacement = false;
+
+      if (toolButton.matches("[data-hs-tool='edit']")) {
+        setTool("edit");
+        return;
+      }
 
       if (toolButton.matches("[data-hs-tool='comment']")) {
         setTool("comment");
@@ -884,6 +1265,35 @@
       suppressNextCommentPlacement = false;
       selectComment(clickedComment);
       clickedComment.focus({ preventScroll: true });
+      return;
+    }
+
+    var clickedListItem = editableListItemForTarget(target);
+
+    if (clickedListItem && state.activeTool.type === "edit") {
+      event.preventDefault();
+      suppressNextCommentPlacement = false;
+      clearSelectedComment();
+      selectListItem(clickedListItem);
+      return;
+    }
+
+    if (state.activeTool.type === "edit") {
+      var clickedEditable = editableTargetFor(target);
+
+      if (clickedEditable instanceof HTMLElement) {
+        event.preventDefault();
+        suppressNextCommentPlacement = false;
+        clearSelectedComment();
+        beginInlineEdit(clickedEditable, {
+          selectAll: false,
+          clientX: event.clientX,
+          clientY: event.clientY,
+        });
+        return;
+      }
+
+      clearSelectedComment();
       return;
     }
 
@@ -920,14 +1330,27 @@
       return;
     }
 
-    var editable = target.closest("[editmode\\:contenteditable]");
+    var listItem = editableListItemForTarget(target);
 
-    if (editable instanceof HTMLElement) {
+    if (listItem && state.activeTool.type === "edit") {
+      selectListItem(listItem);
+      beginInlineEdit(listItem, {
+        selectAll: false,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+      return;
+    }
+
+    var editable = editableTargetFor(target);
+
+    if (editable instanceof HTMLElement && state.activeTool.type === "edit") {
       beginInlineEdit(editable, {
         selectAll: false,
         clientX: event.clientX,
         clientY: event.clientY,
       });
+      return;
     }
   }
 
@@ -949,6 +1372,7 @@
     }
 
     var selectedComment = commentForId(state.selection.commentId);
+    var selectedListItemElement = document.querySelector("[data-hs-list-selected]");
 
     if (
       selectedComment &&
@@ -959,6 +1383,35 @@
       send({ type: "selection.cleared" });
       queueAutosave();
       event.preventDefault();
+    }
+
+    if (
+      selectedListItemElement instanceof HTMLElement &&
+      state.activeTool.type === "edit" &&
+      !isEditingText &&
+      (event.key === "Backspace" || event.key === "Delete")
+    ) {
+      var list = selectedListItemElement.parentElement;
+
+      if (list instanceof HTMLElement) {
+        runListAction(list, "delete");
+        event.preventDefault();
+      }
+    }
+
+    if (
+      selectedListItemElement instanceof HTMLElement &&
+      state.activeTool.type === "edit" &&
+      !isEditingText &&
+      event.altKey &&
+      (event.key === "ArrowUp" || event.key === "ArrowDown")
+    ) {
+      var selectedList = selectedListItemElement.parentElement;
+
+      if (selectedList instanceof HTMLElement) {
+        runListAction(selectedList, event.key === "ArrowUp" ? "up" : "down");
+        event.preventDefault();
+      }
     }
   }
 
@@ -1044,11 +1497,22 @@
   function handleEditableFocusOut(event) {
     var target = event.target;
 
-    if (
-      target instanceof HTMLElement &&
-      target.matches("[editmode\\:contenteditable]")
-    ) {
+    if (target instanceof HTMLElement && isEditableElement(target)) {
       window.setTimeout(queueAutosave, 0);
+    }
+  }
+
+  /** @param {Event} event */
+  function handleDocumentChange(event) {
+    var target = event.target;
+
+    if (
+      target instanceof HTMLInputElement &&
+      target.type === "checkbox" &&
+      !target.closest("[data-hs-comment], [data-hs-runtime], pre, code, script, style")
+    ) {
+      target.toggleAttribute("checked", target.checked);
+      queueAutosave();
     }
   }
 
@@ -1063,6 +1527,7 @@
     clone.removeAttribute("editmode");
     clone.removeAttribute("pageowner");
     clone.removeAttribute("savestatus");
+    clone.removeAttribute("data-hs-active-tool");
 
     clone
       .querySelectorAll("style[data-name='option-visibility'][mutations-ignore]")
@@ -1081,14 +1546,22 @@
 
     clone
       .querySelectorAll(
-        "[data-hs-selected], [data-hs-draft], [data-hs-dragging], [data-hs-resizing], [movable-dragging]"
+        "[data-hs-selected], [data-hs-draft], [data-hs-dragging], [data-hs-resizing], [data-hs-list-selected], [movable-dragging]"
       )
       .forEach(function (element) {
         element.removeAttribute("data-hs-selected");
         element.removeAttribute("data-hs-draft");
         element.removeAttribute("data-hs-dragging");
         element.removeAttribute("data-hs-resizing");
+        element.removeAttribute("data-hs-list-selected");
         element.removeAttribute("movable-dragging");
+        element.removeAttribute("tabindex");
+      });
+
+    clone
+      .querySelectorAll("[data-hs-editable-list] > li[tabindex]")
+      .forEach(function (element) {
+        element.removeAttribute("tabindex");
       });
 
     clone.querySelectorAll("[data-hs-comment]").forEach(function (element) {
@@ -1149,20 +1622,29 @@
 
   function init() {
     createToolbar();
+    observeSaveToasts();
     hydrateComments();
     syncCommentEditability();
-    hydrateEditableBadges();
-    observeEditableBadges();
+    hydrateEditableLists();
     document.addEventListener("click", handleDocumentClick);
     document.addEventListener("dblclick", handleDocumentDoubleClick);
     document.addEventListener("keydown", handleDocumentKeyDown);
     document.addEventListener("focusout", handleEditableFocusOut);
+    document.addEventListener("change", handleDocumentChange);
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("pointermove", handlePointerMove);
     document.addEventListener("pointerup", handlePointerUp);
     document.addEventListener("pointercancel", handlePointerUp);
-    window.addEventListener("scroll", queueEditBadgePositioning, true);
-    window.addEventListener("resize", queueEditBadgePositioning);
+    window.addEventListener(
+      "scroll",
+      function () {
+        queueListControlPositioning();
+      },
+      true
+    );
+    window.addEventListener("resize", function () {
+      queueListControlPositioning();
+    });
     updateToolbarState();
   }
 

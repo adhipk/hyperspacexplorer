@@ -3,3 +3,4 @@ test-results/
 playwright-report/
 sites-versions/
 tmp-hyperspace-*.html
+hyperspace-html-review-*.tgz

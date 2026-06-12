@@ -2,141 +2,129 @@
 <html lang="en"><head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Hyperspace Project Notes</title>
+    <title>Hyperspace HTML Review</title>
     <link rel="stylesheet" href="./docs.css">
   </head>
   <body data-hs-comment-host="">
     <div class="shell">
       <header class="site-header">
         <p class="brand">Hyperspace</p>
-        <nav class="site-nav" aria-label="Project pages">
-          <a href="./index.html">Overview</a>
-          <a href="./current-state.html">Current State</a>
-          <a href="./phase2.html">Phase 2</a>
-          <a href="./hyperclay-local-server.html">Local Server</a>
-          <a href="./distributables.html">Distributables</a>
-          <a href="./plan.html">Plan</a>
-          <a href="./comment-isolation.html">Comment Isolation</a>
-          <a href="./design-doc.svg">Design SVG</a>
+        <nav class="site-nav" aria-label="Page sections">
+          <a href="#review">Review Loop</a>
+          <a href="#runtime">Runtime</a>
+          <a href="#host">Host</a>
         </nav>
       </header>
 
       <main data-hs-comment-host="">
         <section>
-          <p class="eyebrow">Project Documentation</p>
-          <h1 editmode:contenteditable="">HTML documents that can be marked up in place.</h1>
+          <p class="eyebrow">HTML Review Runtime</p>
+          <h1>Review any HTML file without changing its source.</h1>
         </section>
 
-        <p class="lede" editmode:contenteditable="">
-          Hyperspace treats an HTML file as the readable source of truth. The
-          page can contain editable regions, interactive form-like controls, and
-          nearby comments that remain meaningful in raw HTML. Edit is good</p>
+        <p class="lede">
+          Hyperspace adds an external review layer to ordinary HTML: a toolbar,
+          comments, structured list controls, quiet saves, and cleanup on
+          persistence. Page styling stays with the HTML document; the review UI
+          lives in <code>hyperspace.js</code> and <code>hyperspace.css</code>.
+        </p>
 
-        <section class="section">
-          <h2>Runtime split</h2>
-          <div class="facts">
-            <div class="fact">
-              <h3>Hyperclay core</h3>
-              <p>
-                HyperclayJS owns edit mode, save snapshots, persistence
-                helpers, dialogs, DOM helpers, and the <code>/_/save</code>
-                lifecycle.
-              </p>
-            </div>
-            <div class="fact">
-              <h3>Hyperspace layer</h3>
-              <p>
-                Hyperspace adds a small toolbar, comment placement, styling, and
-                AI-facing document conventions.
-              </p>
-            </div>
-            <div class="fact">
-              <h3>Local host</h3>
-              <p>
-                A Hyperclay-compatible local server serves the files, injects
-                runtime scripts, and writes saved HTML back to disk.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section class="section split" data-hs-comment-host="">
+        <section id="review" class="section split" data-hs-comment-host="">
           <div>
-            <h2 editmode:contenteditable="">Basic comment behavior</h2>
+            <h2>Review Loop</h2>
           </div>
           <div>
-            <p editmode:contenteditable="">
-              Select the comment tool, click where the note belongs, type the
-              comment, and click away. The comment is inserted into the closest
-              document container and can float visually through CSS position
-              state.
+            <p>
+              Serve a project folder, open any <code>.html</code> or
+              <code>.htmlclay</code> file, then use the edit toggle, comment
+              tool, and save button without embedding application chrome in the
+              source document.
             </p>
+            <ol>
+              <li>Click the comment tool and place a note near the relevant content.</li>
+              <li>Turn edit mode on only when text or list content needs direct changes.</li>
+              <li>Save writes clean HTML back to disk with runtime UI removed.</li>
+            </ol>
+          </div>
+        </section>
+
+        <section id="runtime" class="section">
+          <h2>Runtime Boundary</h2>
+          <div class="table-wrap">
+            <table class="comparison">
+              <thead>
+                <tr>
+                  <th>Ready</th>
+                  <th>Surface</th>
+                  <th>Boundary</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><input type="checkbox" checked=""></td>
+                  <td>External toolbar runtime.</td>
+                  <td>
+                    The toolbar, tool buttons, icons, list controls, and save
+                    toast styling are supplied by external runtime assets.
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked=""></td>
+                  <td>Clean artifact source.</td>
+                  <td>
+                    Saved HTML keeps document content, user comments, and
+                    durable transform state, but strips runtime-only scripts,
+                    links, toolbar nodes, and transient edit attributes.
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked=""></td>
+                  <td>Ordinary HTML compatibility.</td>
+                  <td>
+                    The local host can inject Hyperspace into any served HTML
+                    page, including pages that were not authored in this repo.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="host" class="section">
+          <h2>Host Contract</h2>
+          <div class="details-list">
+            <details open="">
+              <summary>External assets</summary>
+              <p>
+                HTML responses receive a removable stylesheet link, HyperclayJS
+                script, and Hyperspace script. Those tags are marked as runtime
+                elements and are removed before the file is persisted.
+              </p>
+            </details>
+            <details open="">
+              <summary>Save cleanup</summary>
+              <p>
+                The save endpoint accepts Hyperclay-compatible page snapshots,
+                validates the target path, creates a backup, strips runtime UI,
+                and writes the resulting HTML atomically.
+              </p>
+            </details>
           </div>
         </section>
 
         <section class="section">
-          <h2>Source convention</h2>
+          <h2>Durable Comment Shape</h2>
           <pre><code>&lt;section data-hs-comment-host&gt;
-  &lt;p editmode:contenteditable&gt;Editable text&lt;/p&gt;
+  &lt;p&gt;Copy that needs review&lt;/p&gt;
 
-  &lt;aside data-hs-comment style="--hs-x: 72px; --hs-y: 120px"&gt;
-    &lt;p editmode:contenteditable&gt;Comment text&lt;/p&gt;
+  &lt;aside data-hs-comment movable style="transform: translate(72px, 120px)"&gt;
+    &lt;p&gt;Clarify this before shipping.&lt;/p&gt;
   &lt;/aside&gt;
 &lt;/section&gt;</code></pre>
         </section>
-      <aside data-hs-comment="" style="transform: translate(899.875px, 230.121px); z-index: 3;" movable=""><p editmode:contenteditable="">font looks good however we also need to consider how it looks on dark websites.<br></p></aside><aside data-hs-comment="" style="transform: translate(898px, 372px);" movable=""><p editmode:contenteditable="">active tool is reset on focus loss, I can add multiple comments.</p></aside><aside data-hs-comment="" style="transform: translate(948px, 515px);" movable=""><p editmode:contenteditable="">Editing and marking up are seperate operations,<br>we have 3 UI states. and tied to the entire application.<br>editable content has a small&nbsp;&lt;svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil"&gt;&lt;path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"&gt;&lt;/path&gt;&lt;path d="m15 5 4 4"&gt;&lt;/path&gt;&lt;/svg&gt;<br>edit icon.&nbsp;<br>steal the ux from excalidraw<br>I want it to be basically the same</p><div><br></div><p></p></aside><aside data-hs-comment="" style="transform: translate(301.044px, 13.2227px); z-index: 1;" movable=""><p editmode:contenteditable="">I cant pick where in the text I want to edit, If i have a long font and I want to edit something in the middle its impossible.</p></aside><aside data-hs-comment="" style="transform: translate(862px, 109px);" movable=""><p editmode:contenteditable="">the icons you are using are broken use standard lucide icons.</p><div><br></div><p></p></aside></main>
+      </main>
     </div>
   
-
-
-
-
-
-
-
-
-
-
-<aside data-hs-comment="" style="transform: translate(114px, 87px);" movable=""><p editmode:contenteditable="">your cursor doesnt line up<br><br></p></aside>
-
-
-
-
-<aside data-hs-comment="" style="transform: translate(1295.52px, 1490.65px); z-index: 6;" movable=""><p editmode:contenteditable="">Comment boxes<div>should be resizable like excalidraw<br><br></div></p></aside>
-
-
-
-
-
-
-
-
-
-
-
-<aside data-hs-comment="" style="transform: translate(60.2657px, 809.922px); z-index: 9;" movable=""><p editmode:contenteditable="">the comment color is garbage and unreadable&nbsp;<br>the resize box is not visible box resizing shoud be automatic to size of the text.<br>stick to plain red no shadow weirdness visible on everything.</p><div><br></div><p></p></aside>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
