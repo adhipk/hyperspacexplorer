@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>HyperEdit Progress Plan</title>
+    <title>Hyperspace Plan</title>
     <link rel="stylesheet" href="./docs.css" />
   </head>
   <body>
     <div class="shell">
-      <header class="site-header" data-hx-ignore>
-        <p class="brand">HyperEdit</p>
+      <header class="site-header">
+        <p class="brand">Hyperspace</p>
         <nav class="site-nav" aria-label="Project pages">
           <a href="./index.html">Overview</a>
           <a href="./current-state.html">Current State</a>
@@ -20,211 +20,100 @@
         </nav>
       </header>
 
-      <main data-testid="editable-root">
+      <main>
         <section>
-          <p class="eyebrow">Planning Artifact</p>
-          <h1>Progress and next work.</h1>
+          <p class="eyebrow">Reset Plan</p>
+          <h1>Build on Hyperclay, not around it.</h1>
         </section>
 
         <p class="lede">
-          The active path is typed plain JavaScript with small local
-          boundaries. HyperEdit still ships as a direct browser include; source
-          modularity can grow only where it removes real friction.
+          The prototype proved the workflow: AI can generate ordinary HTML,
+          users can edit and annotate it in place, and the edited page can be
+          saved back to disk. The next implementation should reuse HyperclayJS
+          for editing, snapshots, dirty checks, persistence attributes, and save
+          behavior, while Hyperspace provides the local server, toolbar,
+          annotation model, and AI-facing tool definitions.
         </p>
-
-        <section class="section">
-          <h2>Current status</h2>
-          <div class="facts">
-            <div class="fact">
-              <h3>Typed baseline is in place</h3>
-              <p>
-                <code>hyperedit.js</code> now runs under
-                <code>// @ts-check</code> with JSDoc typedefs and
-                <code>noImplicitAny</code> static checking.
-              </p>
-            </div>
-            <div class="fact">
-              <h3>Runtime contract stayed stable</h3>
-              <p>
-                The browser include, editor behaviors, save payload shape, and
-                local draft flow were kept compatible with the existing pages.
-              </p>
-            </div>
-            <div class="fact">
-              <h3>Bun owns the workflow</h3>
-              <p>
-                <code>bun run check</code> covers syntax and type checks, and
-                <code>bun run test</code> runs the Playwright suite.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section class="section">
-          <h2>Completed milestones</h2>
-          <ol>
-            <li>
-              Added the current-state artifact so the existing JavaScript,
-              server role, save behavior, and known limits are documented
-              outside the source file.
-            </li>
-            <li>
-              Adopted Bun for package management and project scripts, including
-              the generated lockfile.
-            </li>
-            <li>
-              Added JSDoc data contracts for options, annotations, state,
-              colors, save payloads, and save results.
-            </li>
-            <li>
-              Enabled static checking for plain JavaScript without introducing
-              TypeScript output, a bundler, or generated runtime files.
-            </li>
-            <li>
-              Isolated typed helper boundaries for selectors, annotation lookup,
-              annotation panel rendering/actions, color parsing, serialization
-              cleanup, and save/draft/event flow.
-            </li>
-            <li>
-              Added typed history and input-event boundaries for undo capture,
-              root snapshot restore, saved-root fallback, and editable input
-              target checks.
-            </li>
-            <li>
-              Wired project HTML artifacts to the Bun save endpoint and added a
-              regression test proving HyperEdit comment notes are included in
-              the saved HTML payload.
-            </li>
-            <li>
-              Accepted the durable annotation model: the HTML file remains the
-              source of truth, while annotations become separate durable objects
-              stored with the artifact and rendered as part of the page.
-            </li>
-            <li>
-              Accepted targeted live editing: users need to make small changes
-              directly, but the frontend should record focused deltas or durable
-              edit objects rather than treating the whole page as editable
-              source.
-            </li>
-            <li>
-              Replaced whole-page <code>contenteditable</code> activation with
-              targeted block activation: edit mode turns on tools, and text
-              input requires activating a specific block.
-            </li>
-            <li>
-              Verified the current behavior with <code>bun run check</code> and
-              the Playwright test suite.
-            </li>
-          </ol>
-        </section>
 
         <section class="section">
           <h2>Standing decisions</h2>
           <div class="decision-grid">
             <article class="decision">
               <span class="status-pill accepted">Accepted</span>
-              <h3>No build step yet</h3>
+              <h3>Opt-in editing</h3>
               <p>
-                Keep the runtime source directly loadable in the browser. Do
-                not add a bundler, transpiler, framework migration, or generated
-                output for this phase.
+                The base HTML page is not contenteditable. Only elements marked
+                as editable through Hyperclay-compatible attributes can be
+                edited by the user.
               </p>
             </article>
             <article class="decision">
               <span class="status-pill accepted">Accepted</span>
-              <h3>Typed JS first</h3>
+              <h3>Hyperclay core</h3>
               <p>
-                Use JSDoc and static checks before considering TypeScript files
-                or a compile pipeline.
+                HyperclayJS owns the editing and saving stack: edit mode,
+                snapshots, dirty detection, DOM persistence helpers, save state,
+                and the <code>/_/save</code> request shape.
               </p>
             </article>
             <article class="decision">
               <span class="status-pill accepted">Accepted</span>
-              <h3>Minimal modularity</h3>
+              <h3>Plain source HTML</h3>
               <p>
-                Split code only when the boundary is already obvious and the
-                split can use browser-native ES modules.
-              </p>
-            </article>
-            <article class="decision">
-              <span class="status-pill rejected">Prototype only</span>
-              <h3>Full DOM snapshots</h3>
-              <p>
-                Full-document HTML save remains acceptable for the prototype,
-                but it is not the long-term source of truth.
+                A source HTML file sits in a user's project. It may be generated
+                by AI, but it should remain understandable and usable without a
+                generated build pipeline.
               </p>
             </article>
             <article class="decision">
               <span class="status-pill accepted">Accepted</span>
-              <h3>Durable annotations</h3>
+              <h3>Local save server</h3>
               <p>
-                User comments are editor feedback stored with the HTML artifact,
-                rendered into the page, and kept separate from source text so
-                the agent can safely update the document.
-              </p>
-            </article>
-            <article class="decision">
-              <span class="status-pill accepted">Accepted</span>
-              <h3>Targeted editing</h3>
-              <p>
-                Live document editing is required, but whole-page edit mode is
-                the wrong boundary. User edits should become focused deltas the
-                agent can reconcile with the source.
+                Hyperspace ships a lightweight localhost server that serves the
+                files, injects the configured runtime scripts, implements
+                <code>/_/save</code>, and writes edited HTML back to disk.
               </p>
             </article>
           </div>
         </section>
 
         <section class="section">
-          <h2>What is left</h2>
+          <h2>Package boundary</h2>
           <div class="table-wrap">
             <table class="comparison">
               <thead>
                 <tr>
-                  <th>Work</th>
-                  <th>Status</th>
-                  <th>Reason</th>
+                  <th>Layer</th>
+                  <th>Responsibility</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <th>Undo and input-event cleanup</th>
-                  <td><span class="status-pill accepted">Done</span></td>
+                  <th>Source HTML</th>
                   <td>
-                    Typed helpers now own native input gating, root snapshots,
-                    undo stack trimming, saved-root fallback, and restore.
+                    Content, interactive elements, editable regions, durable
+                    state, and tool markup authored by a user or AI.
                   </td>
                 </tr>
                 <tr>
-                  <th>Targeted edit boundary</th>
-                  <td><span class="status-pill next">Started</span></td>
+                  <th>HyperclayJS</th>
                   <td>
-                    Whole-page editing is removed. The next step is storing
-                    user text edits as durable deltas or edit objects.
+                    Editing primitives, persistence attributes, utility
+                    functions, snapshots, and save calls.
                   </td>
                 </tr>
                 <tr>
-                  <th>Stored annotation and edit layer</th>
-                  <td><span class="status-pill accepted">Chosen</span></td>
+                  <th>Hyperspace client</th>
                   <td>
-                    Annotations and small user edits should be durable objects
-                    attached to DOM elements and stored with the HTML artifact.
+                    Basic toolbar UI, annotation interactions, style layer, and
+                    tool definitions that compose Hyperclay primitives.
                   </td>
                 </tr>
                 <tr>
-                  <th>Native module split</th>
-                  <td><span class="status-pill next">Optional</span></td>
+                  <th>Hyperspace server</th>
                   <td>
-                    The file now has clearer helper boundaries. Split only if a
-                    next edit proves the single file is slowing safe work.
-                  </td>
-                </tr>
-                <tr>
-                  <th>Serialization hardening</th>
-                  <td><span class="status-pill next">Later</span></td>
-                  <td>
-                    Runtime UI is stripped before save, but the long-term model
-                    should avoid persisting browser DOM HyperEdit does not own.
+                    Local file serving, runtime injection, save endpoint, path
+                    validation, backups, and atomic writes.
                   </td>
                 </tr>
               </tbody>
@@ -232,46 +121,115 @@
           </div>
         </section>
 
-        <section class="section split">
-          <div>
-            <h2>Next slice</h2>
-          </div>
-          <div>
-            <p>
-              The next remaining work is durable edit deltas. The editor now
-              targets individual blocks for text input, but user text edits
-              still need to be captured as durable objects the agent can
-              reconcile with the HTML source.
-            </p>
-            <ul>
-              <li>Keep browser behavior unchanged unless tests expose a bug.</li>
-              <li>Keep new helpers small, typed, and close to their callers.</li>
-              <li>
-                Validate with <code>bun run check</code> and
-                <code>PORT=61234 bun run test</code>.
-              </li>
-            </ul>
-          </div>
+        <section class="section">
+          <h2>User loop</h2>
+          <ol>
+            <li>An AI agent or user creates a normal HTML file in a project.</li>
+            <li>
+              The file marks only intended user-editable regions as editable.
+            </li>
+            <li>
+              The user opens the page through the Hyperspace localhost server.
+            </li>
+            <li>
+              The server injects HyperclayJS and the Hyperspace toolbar at
+              response time.
+            </li>
+            <li>
+              The user edits marked regions and adds annotations to any element.
+            </li>
+            <li>
+              Hyperclay captures the save snapshot and posts it to
+              <code>/_/save</code>.
+            </li>
+            <li>
+              The server validates the target, writes a backup, and persists the
+              updated HTML file.
+            </li>
+          </ol>
         </section>
 
         <section class="section">
-          <h2>Stop points</h2>
-          <div class="notice">
-            <p>
-              Stop and create a focused HTML decision artifact if the work would
-              require a build step, a long-term save-format commitment, moving
-              comment UI out of the editable root, or changing the consumer
-              script contract.
-            </p>
+          <h2>Annotation direction</h2>
+          <p>
+            Keep annotations as real HTML close to the content they describe.
+            A basic comment is not attached to a particular object; the first
+            click chooses the closest reasonable document container, and the
+            comment element is inserted there. CSS and the Hyperspace client own
+            its rendered position, so the comment can float anywhere while the
+            source stays near the document area it belongs to.
+          </p>
+          <pre><code>&lt;section data-hs-comment-host&gt;
+  &lt;h2 editmode:contenteditable&gt;Editable heading&lt;/h2&gt;
+
+  &lt;aside data-hs-comment style="--hs-x: 72px; --hs-y: 120px"&gt;
+    &lt;p&gt;Ask the user whether this framing is right.&lt;/p&gt;
+  &lt;/aside&gt;
+&lt;/section&gt;
+</code></pre>
+          <p>
+            For text-range highlights, wrapping the selected text is acceptable
+            because the range itself needs a durable DOM anchor. A basic
+            comment does not need that anchor. Hyperclay helpers such as
+            <code>el.nearest</code> can help tools find the closest
+            <code>data-hs-comment-host</code> while keeping source readable.
+          </p>
+        </section>
+
+        <section class="section">
+          <h2>Next slice</h2>
+          <ol>
+            <li>
+              Replace the prototype save contract with a Hyperclay-compatible
+              <code>/_/save</code> endpoint.
+            </li>
+            <li>
+              Add response-time injection for a pinned HyperclayJS config URL
+              and a small Hyperspace client script.
+            </li>
+            <li>
+              Define the first editable-region convention and toolbar commands.
+            </li>
+            <li>
+              Implement basic comments as nearby HTML elements inserted into the
+              closest comment host, with visual position stored as CSS state.
+            </li>
+            <li>
+              Verify that saved HTML excludes runtime UI and preserves user
+              edits and annotations.
+            </li>
+          </ol>
+        </section>
+
+        <section class="section">
+          <h2>Open questions</h2>
+          <div class="details-list">
+            <details open>
+              <summary>Annotation anchor format</summary>
+              <p>
+                Prefer existing <code>id</code> values when available. Generate
+                <code>data-hs-id</code> only when the target has no stable
+                identifier.
+              </p>
+            </details>
+            <details>
+              <summary>Text-range persistence</summary>
+              <p>
+                Decide whether range annotations use inline wrappers only, or a
+                wrapper plus a selector record that can be reattached after an
+                agent rewrites the surrounding element.
+              </p>
+            </details>
+            <details>
+              <summary>Tool definition shape</summary>
+              <p>
+                Each tool needs a small contract for DOM inputs, Hyperclay
+                primitives used, persistent output, and runtime-only UI.
+              </p>
+            </details>
           </div>
         </section>
       </main>
     </div>
-
-    <script
-      src="./hyperedit.js"
-      data-root="main"
-      data-save-url="/__hyperedit/save"
-    ></script>
   </body>
 </html>

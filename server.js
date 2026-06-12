@@ -2,19 +2,17 @@ const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
-const rootDir = __dirname;
+const rootDir = path.resolve(process.env.HYPERSPACE_ROOT || __dirname);
 const port = Number(process.env.PORT || 5173);
 const hostname = process.env.HOST || "127.0.0.1";
-const savePath = process.env.HYPEREDIT_SAVE_PATH || "/__hyperedit/save";
-
-/*
-  Minimal Bun implementation of the HyperEdit save contract.
-  The frontend only needs a POST URL that accepts its serialized HTML payload.
-*/
+const hyperclayUrl =
+  process.env.HYPERCLAY_URL ||
+  "https://cdn.jsdelivr.net/npm/hyperclayjs@1/src/hyperclay.js?preset=smooth-sailing";
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
+  ".htmlclay": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".md": "text/markdown; charset=utf-8",
@@ -23,25 +21,85 @@ const mimeTypes = {
 };
 
 function json(body, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-  });
+  return withLocalCookies(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+    })
+  );
 }
 
-function resolveProjectPath(pathname) {
-  let urlPath;
+function withLocalCookies(response) {
+  response.headers.append(
+    "Set-Cookie",
+    "isAdminOfCurrentResource=true; Path=/; SameSite=Lax"
+  );
+  response.headers.append("Set-Cookie", "isLoggedIn=true; Path=/; SameSite=Lax");
+  return response;
+}
+
+function stripSystemRouteMarker(pathname) {
+  if (pathname.startsWith("/_/")) {
+    return pathname.slice(2);
+  }
+  return pathname;
+}
+
+function resolveResourceFromHref(href) {
+  let pathname;
 
   try {
-    urlPath = new URL(pathname || "/", "http://localhost").pathname;
+    pathname = new URL(href, "http://localhost").pathname;
   } catch (error) {
     return null;
   }
 
+  if (pathname === "/") {
+    return "index.html";
+  }
+
+  const relativePath = decodeURIComponent(pathname).replace(/^\/+/, "");
+  const htmlMatch = relativePath.match(/^(.*?\.html(?:clay)?)(?:\/.*)?$/);
+
+  if (!htmlMatch) {
+    return null;
+  }
+
+  return path.normalize(htmlMatch[1]);
+}
+
+function validateWritableHtml(relativePath) {
+  if (
+    typeof relativePath !== "string" ||
+    relativePath.length === 0 ||
+    relativePath.length > 255 ||
+    relativePath.includes("\\") ||
+    relativePath.includes("..") ||
+    relativePath.startsWith("/") ||
+    path.isAbsolute(relativePath) ||
+    !/^[\w./-]+$/.test(relativePath) ||
+    !/\.(html|htmlclay)$/.test(relativePath) ||
+    relativePath.split("/").some((segment) => !segment || segment.startsWith("."))
+  ) {
+    return { error: "Invalid file path." };
+  }
+
+  const filePath = path.resolve(rootDir, relativePath);
+
+  if (filePath !== rootDir && !filePath.startsWith(rootDir + path.sep)) {
+    return { error: "Path escapes project root." };
+  }
+
+  return { filePath };
+}
+
+function resolveProjectPath(pathname) {
   let decodedPath;
 
   try {
-    decodedPath = decodeURIComponent(urlPath);
+    decodedPath = decodeURIComponent(
+      new URL(pathname || "/", "http://localhost").pathname
+    );
   } catch (error) {
     return null;
   }
@@ -81,45 +139,197 @@ async function resolveStaticFile(pathname) {
   return null;
 }
 
-async function handleSave(request) {
-  let payload;
+function runtimeSnippet() {
+  return [
+    '<link rel="stylesheet" href="/hyperspace.css" save-remove data-hs-runtime>',
+    `<script type="module" src="${hyperclayUrl}" save-remove data-hs-runtime></script>`,
+    '<script type="module" src="/hyperspace.js" save-remove data-hs-runtime></script>',
+  ].join("\n");
+}
+
+function injectRuntime(html) {
+  if (
+    html.includes("data-hs-no-inject") ||
+    html.includes("/hyperspace.js") ||
+    html.includes('src="./hyperspace.js"')
+  ) {
+    return html;
+  }
+
+  const snippet = "\n" + runtimeSnippet() + "\n";
+
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, snippet + "</body>");
+  }
+
+  return html + snippet;
+}
+
+function stripRuntime(html) {
+  let cleaned = html
+    .replace(/\s*<link\b[^>]*\bdata-hs-runtime\b[^>]*>\s*/gi, "\n")
+    .replace(
+      /\s*<script\b[^>]*\bdata-hs-runtime\b[^>]*>\s*<\/script>\s*/gi,
+      "\n"
+    )
+    .replace(
+      /\s*<script\b[^>]*\bsrc=["'][^"']*hyperspace\.js[^"']*["'][^>]*>\s*<\/script>\s*/gi,
+      "\n"
+    )
+    .replace(
+      /\s*<script\b[^>]*\bsrc=["'][^"']*hyperclayjs[^"']*["'][^>]*>\s*<\/script>\s*/gi,
+      "\n"
+    )
+    .replace(
+      /\s*<link\b[^>]*\bhref=["'][^"']*hyperspace\.css[^"']*["'][^>]*>\s*/gi,
+      "\n"
+    )
+    .replace(/\scontenteditable=(["'])true\1/gi, "");
+
+  let previous;
+  do {
+    previous = cleaned;
+    cleaned = cleaned.replace(
+      /\s*<([a-z][\w:-]*)\b[^>]*\bsave-remove\b[^>]*>[\s\S]*?<\/\1>\s*/gi,
+      "\n"
+    );
+  } while (cleaned !== previous);
+
+  cleaned = cleaned.replace(/\s*<[^>]+\bsave-remove\b[^>]*>\s*/gi, "\n");
+  return cleaned;
+}
+
+async function readSaveContent(request) {
+  const contentType = request.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    const payload = await request.json();
+
+    if (payload && typeof payload.content === "string") {
+      return payload.content;
+    }
+
+    if (payload && typeof payload.html === "string") {
+      return payload.html;
+    }
+
+    return null;
+  }
+
+  return request.text();
+}
+
+function timestamp() {
+  const now = new Date();
+  const parts = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+    String(now.getSeconds()).padStart(2, "0"),
+    String(now.getMilliseconds()).padStart(3, "0"),
+  ];
+
+  return parts.slice(0, 3).join("-") + "-" + parts.slice(3).join("-");
+}
+
+async function backupExistingFile(relativePath, filePath) {
+  let existing;
 
   try {
-    payload = await request.json();
+    existing = await fs.readFile(filePath, "utf8");
   } catch (error) {
-    return json({ ok: false, error: "Expected JSON request body." }, 400);
+    return null;
   }
 
-  if (!payload || typeof payload !== "object") {
-    return json({ ok: false, error: "Expected save payload." }, 400);
+  const backupName = relativePath.replace(/\.(html|htmlclay)$/, "");
+  const backupDir = path.join(rootDir, "sites-versions", backupName);
+  const backupPath = path.join(backupDir, timestamp() + ".html");
+
+  await fs.mkdir(backupDir, { recursive: true });
+  await fs.writeFile(backupPath, existing, "utf8");
+  return backupPath;
+}
+
+async function handleSave(request) {
+  const pageUrl = request.headers.get("Page-URL");
+
+  if (!pageUrl) {
+    return json({ msg: "Page-URL header required.", msgType: "error" }, 400);
   }
 
-  if (typeof payload.html !== "string" || !payload.html.trim()) {
-    return json({ ok: false, error: "Missing HTML payload." }, 400);
+  const relativePath = resolveResourceFromHref(pageUrl);
+
+  if (!relativePath) {
+    return json({ msg: "Could not resolve HTML file.", msgType: "error" }, 400);
   }
 
-  const filePath = resolveProjectPath(payload.pathname);
+  const validated = validateWritableHtml(relativePath);
 
-  if (!filePath || path.extname(filePath).toLowerCase() !== ".html") {
-    return json({ ok: false, error: "Save target must be an HTML file." }, 400);
+  if (validated.error) {
+    return json({ msg: validated.error, msgType: "error" }, 400);
   }
+
+  let content;
+
+  try {
+    content = await readSaveContent(request);
+  } catch (error) {
+    return json({ msg: "Invalid save body.", msgType: "error" }, 400);
+  }
+
+  if (typeof content !== "string" || !content.trim()) {
+    return json({ msg: "HTML content required.", msgType: "error" }, 400);
+  }
+
+  const cleaned = stripRuntime(content);
+  const filePath = validated.filePath;
+  const tempPath =
+    filePath + "." + process.pid + "." + crypto.randomUUID() + ".tmp";
 
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
-    const tempPath =
-      filePath + "." + process.pid + "." + crypto.randomUUID() + ".tmp";
-
-    await fs.writeFile(tempPath, payload.html, "utf8");
+    await backupExistingFile(relativePath, filePath);
+    await fs.writeFile(tempPath, cleaned, "utf8");
     await fs.rename(tempPath, filePath);
 
-    return json({
-      ok: true,
-      pathname: payload.pathname || "/",
-      bytes: Buffer.byteLength(payload.html, "utf8"),
-    });
+    return json({ msg: "Saved", msgType: "success" });
   } catch (error) {
-    return json({ ok: false, error: error.message || "Save failed." }, 500);
+    try {
+      await fs.unlink(tempPath);
+    } catch (unlinkError) {}
+
+    return json(
+      { msg: error.message || "Server error saving file.", msgType: "error" },
+      500
+    );
   }
+}
+
+async function serveStaticFile(request, filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const headers = new Headers();
+  const type = mimeTypes[ext];
+
+  if (type) {
+    headers.set("Content-Type", type);
+  }
+
+  if (ext === ".html" || ext === ".htmlclay") {
+    const html = await fs.readFile(filePath, "utf8");
+    return withLocalCookies(
+      new Response(request.method === "HEAD" ? null : injectRuntime(html), {
+        headers,
+      })
+    );
+  }
+
+  return withLocalCookies(
+    new Response(request.method === "HEAD" ? null : Bun.file(filePath), {
+      headers,
+    })
+  );
 }
 
 const server = Bun.serve({
@@ -127,39 +337,32 @@ const server = Bun.serve({
   port,
   async fetch(request) {
     const url = new URL(request.url);
+    const pathname = stripSystemRouteMarker(url.pathname);
 
-    if (url.pathname === savePath) {
+    if (pathname === "/save") {
       if (request.method !== "POST") {
-        return json({ ok: false, error: "Method not allowed." }, 405);
+        return json({ msg: "Method not allowed.", msgType: "error" }, 405);
       }
 
       return handleSave(request);
     }
 
     if (request.method !== "GET" && request.method !== "HEAD") {
-      return new Response("Method not allowed", { status: 405 });
+      return withLocalCookies(new Response("Method not allowed", { status: 405 }));
     }
 
     const filePath = await resolveStaticFile(url.pathname);
 
     if (!filePath) {
-      return new Response("Not found", { status: 404 });
+      return withLocalCookies(new Response("Not found", { status: 404 }));
     }
 
-    const file = Bun.file(filePath);
-    const headers = new Headers();
-    const type = mimeTypes[path.extname(filePath).toLowerCase()];
-
-    if (type) {
-      headers.set("Content-Type", type);
-    }
-
-    return new Response(request.method === "HEAD" ? null : file, { headers });
+    return serveStaticFile(request, filePath);
   },
   error(error) {
-    return json({ ok: false, error: error.message || "Server error." }, 500);
+    return json({ msg: error.message || "Server error.", msgType: "error" }, 500);
   },
 });
 
 console.log(`Serving ${rootDir} at http://${server.hostname}:${server.port}`);
-console.log(`HyperEdit example save endpoint: ${savePath}`);
+console.log("Hyperclay-compatible save endpoint: /_/save");

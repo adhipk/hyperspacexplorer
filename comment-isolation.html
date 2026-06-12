@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>HyperEdit Comment Isolation</title>
+    <title>Hyperspace Comment Model</title>
     <link rel="stylesheet" href="./docs.css" />
   </head>
   <body>
     <div class="shell">
-      <header class="site-header" data-hx-ignore>
-        <p class="brand">HyperEdit</p>
+      <header class="site-header">
+        <p class="brand">Hyperspace</p>
         <nav class="site-nav" aria-label="Project pages">
           <a href="./index.html">Overview</a>
           <a href="./current-state.html">Current State</a>
@@ -20,163 +20,43 @@
         </nav>
       </header>
 
-      <main data-testid="editable-root">
+      <main data-hs-comment-host>
         <section>
-          <p class="eyebrow">Decision Point</p>
-          <h1>Durable annotations without corrupting page text.</h1>
+          <p class="eyebrow">Comment Model</p>
+          <h1 editmode:contenteditable>Comments are nearby HTML, not hidden metadata.</h1>
         </section>
 
-        <p class="lede">
-          HTML artifacts are live project documents. A coding agent owns the
-          actual HTML file, and the file on disk is the source of truth. User
-          comments, annotations, and targeted edits are first-class
-          communication between editor and writer, so they must be durable,
-          visible to the agent, and rendered back to the user as part of one
-          cohesive page.
+        <p class="lede" editmode:contenteditable>
+          A basic comment is placed into the document structure based on the
+          user's first click. It is not attached to a particular object. Its
+          rendered position can float anywhere, but its source remains close to
+          the content area where it belongs.
         </p>
 
-        <section class="section">
-          <h2>Chosen behavior</h2>
-          <div class="facts">
-            <div class="fact">
-              <h3>Comments are durable</h3>
-              <p>
-                When the user leaves a note, the agent must be able to read it
-                from the artifact file or from durable data stored with that
-                file.
-              </p>
-            </div>
-            <div class="fact">
-              <h3>Live editing is required</h3>
-              <p>
-                The user should be able to make small corrections and targeted
-                edits without asking the agent for every change.
-              </p>
-            </div>
-            <div class="fact">
-              <h3>The page still feels whole</h3>
-              <p>
-                Users should see source content, comments, annotations, and
-                pending edits rendered as one cohesive webpage.
-              </p>
-            </div>
+        <section class="section split" data-hs-comment-host>
+          <div>
+            <h2 editmode:contenteditable>Why not attributes?</h2>
           </div>
-        </section>
-
-        <section class="section">
-          <h2>Architecture decision</h2>
-          <div class="notice">
-            <p>
-              Whole-page edit mode is the wrong boundary. HyperEdit should let
-              the user make targeted edits and annotations, store those changes
-              as durable objects with the artifact, and let the agent reconcile
-              them with the real HTML source.
+          <div>
+            <p editmode:contenteditable>
+              Full comment text in attributes makes source hard to read and
+              awkward to edit. A real <code>aside</code> keeps the note readable
+              to humans and straightforward for agents.
             </p>
           </div>
         </section>
 
         <section class="section">
-          <h2>Why separation matters</h2>
-          <div class="table-wrap">
-            <table class="comparison">
-              <thead>
-                <tr>
-                  <th>Need</th>
-                  <th>Meaning</th>
-                  <th>Risk if ignored</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th>Agent-owned source</th>
-                  <td>The agent writes and revises the real HTML content.</td>
-                  <td>Notes or quick edits can become accidental source changes.</td>
-                </tr>
-                <tr>
-                  <th>User-owned feedback</th>
-                  <td>The user can mark, organize, remove, and request changes quickly.</td>
-                  <td>The user needs the agent for every small correction.</td>
-                </tr>
-                <tr>
-                  <th>Targeted edits</th>
-                  <td>The frontend records a focused change against a specific place.</td>
-                  <td>Whole-page editing can overwrite content the user did not mean to touch.</td>
-                </tr>
-                <tr>
-                  <th>Rendered together</th>
-                  <td>The artifact reads as one annotated, editable webpage.</td>
-                  <td>Annotations feel like hidden metadata instead of communication.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+          <h2>Durable shape</h2>
+          <pre><code>&lt;section data-hs-comment-host&gt;
+  &lt;h2 editmode:contenteditable&gt;A heading&lt;/h2&gt;
 
-        <section class="section split">
-          <div>
-            <h2>Delta rule</h2>
-          </div>
-          <div>
-            <p>
-              User edits should be represented as targeted deltas or durable
-              edit objects first, not immediate direct writes to the HTML source
-              file. The agent can then apply, adjust, or reject those changes
-              while keeping the source coherent.
-            </p>
-          </div>
-        </section>
-
-        <section class="section split">
-          <div>
-            <h2>Reset rule</h2>
-          </div>
-          <div>
-            <p>
-              Annotations attach to DOM elements. When an element is rewritten
-              or replaced, its child annotations should be reset unless the
-              system can clearly reattach them to the updated content.
-            </p>
-          </div>
-        </section>
-
-        <section class="section">
-          <h2>Next implementation</h2>
-          <ol>
-            <li>
-              Keep saving comments to the HTML artifact so the agent can read
-              them from disk.
-            </li>
-            <li>
-              Move toward a stored annotation and edit layer inside the
-              artifact, rather than note text sitting directly inside editable
-              source content.
-            </li>
-            <li>
-              Render the stored layer back onto the page so users see one
-              cohesive document.
-            </li>
-            <li>
-              Replace whole-page edit mode with targeted edit controls that
-              cannot overwrite unrelated source text.
-            </li>
-          </ol>
-        </section>
-
-        <section class="section">
-          <h2>Reference thesis</h2>
-          <p>
-            This follows the idea of HTML artifacts as interactive documents for
-            coding-agent collaboration:
-            <a href="https://claude.com/blog/using-claude-code-the-unreasonable-effectiveness-of-html">The unreasonable effectiveness of HTML</a>.
-          </p>
+  &lt;aside data-hs-comment style="--hs-x: 120px; --hs-y: 48px"&gt;
+    &lt;p editmode:contenteditable&gt;This source remains readable.&lt;/p&gt;
+  &lt;/aside&gt;
+&lt;/section&gt;</code></pre>
         </section>
       </main>
     </div>
-
-    <script
-      src="./hyperedit.js"
-      data-root="main"
-      data-save-url="/__hyperedit/save"
-    ></script>
   </body>
 </html>

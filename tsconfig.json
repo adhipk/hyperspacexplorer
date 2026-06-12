@@ -11,5 +11,5 @@
     "strictNullChecks": false,
     "target": "ES2020"
   },
-  "include": ["hyperedit.js"]
+  "include": ["hyperspace.js"]
 }

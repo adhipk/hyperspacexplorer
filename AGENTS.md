@@ -24,6 +24,25 @@ Planning decisions for this project must be authored as HTML documents.
 When the user states a durable project behavior or correction, consider whether
 this file needs to be updated before continuing.
 
+## Current Product Direction
+
+- Build Hyperspace as a layer over HyperclayJS. Do not reinvent Hyperclay's
+  edit mode, snapshot, dirty-check, persistence, or save stack unless the user
+  explicitly changes direction.
+- Base HTML is not contenteditable by default. Only elements intentionally
+  marked as editable should accept direct user edits.
+- Prefer a lightweight localhost server that serves project files, injects the
+  configured HyperclayJS and Hyperspace runtime scripts, implements
+  `/_/save`, and writes edited HTML back to disk.
+- Keep source HTML ordinary and readable. AI-generated pages may use
+  Hyperclay primitives and Hyperspace tool definitions, but page generation
+  should not need to remember runtime boilerplate.
+- Store basic comments as nearby HTML elements inside the closest reasonable
+  document container selected by the user's first click. Do not attach basic
+  comments to a specific target object unless the user asks for targeted
+  annotations; screen position is CSS/runtime state, while source position keeps
+  the comment semantically close.
+
 ## Decision Flow
 
 - Use two-way-door judgment for implementation decisions. If a choice is cheap

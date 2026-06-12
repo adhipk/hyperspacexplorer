@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "hyperspacexplorer-hyperedit",
+      "name": "hyperspacexplorer-hyperspace",
       "devDependencies": {
         "@playwright/test": "1.60.0",
         "typescript": "^6.0.3",

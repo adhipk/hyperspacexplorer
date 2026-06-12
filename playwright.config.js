@@ -11,7 +11,7 @@ module.exports = defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: `PORT=${port} npm run serve`,
+    command: `PORT=${port} bun run serve`,
     url: `${baseURL}/index.html`,
     reuseExistingServer: true,
     timeout: 10_000,

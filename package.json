@@ -1,10 +1,10 @@
 {
-  "name": "hyperspacexplorer-hyperedit",
+  "name": "hyperspacexplorer-hyperspace",
   "version": "0.1.0",
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "check": "node --check hyperedit.js && node --check server.js && bun run typecheck",
+    "check": "node --check hyperspace.js && node --check server.js && bun run typecheck",
     "serve": "bun server.js",
     "serve:python": "python3 -m http.server 5173 --bind 127.0.0.1",
     "test": "playwright test",
