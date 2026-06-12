@@ -31,7 +31,7 @@ async function stubPageSaves(page) {
 
 async function placeComment(page, text) {
   const host = page.locator(".section.split[data-hs-comment-host]").first();
-  const target = host.locator("p").first();
+  const target = host.locator(".card p").first();
 
   await commentButton(page).click();
   await target.click({ position: { x: 24, y: 18 } });
@@ -81,7 +81,8 @@ test("served HTML pages load with external Hyperspace runtime assets", async ({
   );
 
   const pages = [
-    { path: "/", heading: "Review any HTML file" },
+    { path: "/", heading: "Review the thing itself" },
+    { path: "/background.html", heading: "The browser can be the frontend" },
     { path: "/tmp-hyperspace-arbitrary.html", heading: "Arbitrary external page" },
   ];
 
@@ -118,6 +119,7 @@ test("edit toolbar toggle controls item editing without badges", async ({
 
   const editButton = page.locator("[data-hs-tool='edit']");
   const heading = page.getByRole("heading", { level: 1 });
+  const artifactText = page.locator(".card p").first();
 
   await expect(page.locator("[data-hs-tool='select']")).toHaveCount(0);
   await expect(editButton).toHaveAttribute("aria-pressed", "false");
@@ -143,13 +145,17 @@ test("edit toolbar toggle controls item editing without badges", async ({
   await expect(page.locator("html")).toHaveAttribute("data-hs-active-tool", "edit");
 
   await heading.click();
-  await expect(heading).toHaveAttribute("contenteditable", "true");
+  await expect(heading).not.toHaveAttribute("contenteditable", "true");
+  await expect(page.locator("[contenteditable='true']")).toHaveCount(0);
+
+  await artifactText.click();
+  await expect(artifactText).toHaveAttribute("contenteditable", "true");
   await expect(page.locator("main")).not.toHaveAttribute(
     "contenteditable",
     "true"
   );
 
-  await heading.fill("Edited through toolbar mode.");
+  await artifactText.fill("Edited through toolbar mode.");
   await editButton.click();
   await expect(editButton).toHaveAttribute("aria-pressed", "false");
   await expect(editButton).toHaveAttribute("data-hs-edit-state", "off");
@@ -163,59 +169,65 @@ test("edit toolbar toggle controls item editing without badges", async ({
     "edit"
   );
 
-  await page.getByText("Hyperspace adds an external review layer").click();
+  await heading.click();
   await expect(page.locator("[contenteditable='true']")).toHaveCount(0);
 });
 
-test("demo page exposes editable content and checklist state", async ({
+test("demo page keeps chrome static and artifact content editable", async ({
   page,
 }) => {
   await stubPageSaves(page);
   await page.goto("/");
 
   const heading = page.getByRole("heading", { level: 1 });
-  const firstCheckbox = page.locator("input[type='checkbox']").first();
-  const firstChecklistItem = page.locator("tbody tr").first().locator("td").nth(1);
+  const codeMode = page.locator("[data-demo-mode='code']");
+  const cardText = page.locator(".card p").first();
   const editButton = page.locator("[data-hs-tool='edit']");
 
-  await expect(firstCheckbox).toBeEnabled();
-  await expect(firstCheckbox).toHaveAttribute("checked", "");
+  await expect(codeMode).toBeEnabled();
+  await expect(page.locator("[data-demo-panel='decision']")).toHaveAttribute(
+    "data-active",
+    ""
+  );
   await expect(page.locator(".hs-edit-badge")).toHaveCount(0);
 
   await heading.click();
   await expect(page.locator("[contenteditable='true']")).toHaveCount(0);
 
-  await firstCheckbox.click();
-  await expect(firstCheckbox).not.toHaveAttribute("checked", "");
+  await codeMode.click();
+  await expect(codeMode).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-demo-panel='code']")).toHaveAttribute(
+    "data-active",
+    ""
+  );
+  await page.locator("[data-demo-mode='decision']").click();
 
   await editButton.click();
   await expect(editButton).toHaveAttribute("aria-pressed", "true");
 
   await heading.click();
-  await expect(heading).toHaveAttribute("contenteditable", "true");
-  await heading.fill("Review pages stay editable.");
-  await page.mouse.click(24, 24);
+  await expect(heading).not.toHaveAttribute("contenteditable", "true");
+  await expect(page.locator("[contenteditable='true']")).toHaveCount(0);
 
-  await firstChecklistItem.click();
-  await expect(firstChecklistItem).toHaveAttribute("contenteditable", "true");
-  await firstChecklistItem.fill("Toolbar state remains user-editable.");
+  await cardText.click();
+  await expect(cardText).toHaveAttribute("contenteditable", "true");
+  await cardText.fill("Artifact cards stay editable.");
   await page.mouse.click(24, 24);
 
   const html = await page.evaluate(() => window.Hyperspace.serialize());
 
   expect(html).not.toContain("data-hs-editable-document");
   expect(html).not.toContain("data-hs-active-tool");
-  expect(html).toContain("Review pages stay editable.");
-  expect(html).toContain("Toolbar state remains user-editable.");
+  expect(html).toContain("Artifact cards stay editable.");
   expect(html).not.toContain("disabled");
 });
 
-test("comment tool works on editable checklist documents", async ({ page }) => {
+test("comment tool works on visual artifact cards", async ({ page }) => {
   await stubPageSaves(page);
   await page.goto("/");
 
   const main = page.locator("main");
-  const target = page.locator("tbody tr").first().locator("td").nth(1);
+  const target = page.locator(".card p").first();
 
   await commentButton(page).click();
   await target.click({ position: { x: 20, y: 18 } });
@@ -238,10 +250,15 @@ test("editable lists use structured controls", async ({ page }) => {
   await page.goto("/");
 
   await page.evaluate(() => {
-    const shell = document.querySelector(".shell");
+    const rail = document.querySelector(".rail");
+    const main = document.querySelector("main");
 
-    if (shell instanceof HTMLElement) {
-      shell.hidden = true;
+    if (rail instanceof HTMLElement) {
+      rail.hidden = true;
+    }
+
+    if (main instanceof HTMLElement) {
+      main.hidden = true;
     }
 
     const fixture = document.createElement("section");
@@ -347,7 +364,7 @@ test("double click edits an item without whole-page editing", async ({
   await stubPageSaves(page);
   await page.goto("/");
 
-  const editable = page.locator("details[open] p").first();
+  const editable = page.locator(".card p").first();
   const editButton = page.locator("[data-hs-tool='edit']");
 
   await expect(page.locator("html")).not.toHaveAttribute("editmode", "true");
@@ -415,13 +432,14 @@ test("comment tool stays armed after committing a comment", async ({ page }) => 
   await page.goto("/");
 
   const host = page.locator(".section.split[data-hs-comment-host]").first();
-  const target = host.locator("p").first();
+  const target = host.locator(".card p").first();
+  const secondTarget = host.locator(".card p").nth(1);
   const { comment } = await placeComment(page, "First comment.");
 
   await expect(commentButton(page)).toHaveAttribute("aria-pressed", "true");
   await expect(host.locator("[data-hs-comment]")).toHaveCount(1);
 
-  const targetBox = await target.boundingBox();
+  const targetBox = await secondTarget.boundingBox();
   await page.mouse.click(
     targetBox.x + targetBox.width - 24,
     targetBox.y + targetBox.height - 18
@@ -566,7 +584,7 @@ test("focus loss autosaves text changes without Hyperclay toast path", async ({
     };
   });
 
-  const editable = page.locator("details[open] p").first();
+  const editable = page.locator(".card p").first();
 
   await page.locator("[data-hs-tool='edit']").click();
   await editable.dblclick();
