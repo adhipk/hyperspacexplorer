@@ -1,133 +1,682 @@
 <!DOCTYPE html>
-<html lang="en"><head>
+<html lang="en">
+  <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Hyperspace HTML Review</title>
-    <link rel="stylesheet" href="./docs.css">
+    <title>Hyperspace</title>
+    <style>
+      :root {
+        --ink: #15171a;
+        --muted: #66727c;
+        --paper: #f6f3ec;
+        --panel: #fffefa;
+        --line: #d9d2c6;
+        --teal: #087f8c;
+        --blue: #2454a6;
+        --red: #d92d20;
+        --green: #247a4a;
+        --amber: #a56516;
+        color: var(--ink);
+        background: var(--paper);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .app {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 245px minmax(0, 1fr);
+      }
+
+      .rail {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 28px;
+        padding: 24px;
+        border-right: 1px solid var(--line);
+        background: #ece7dc;
+      }
+
+      .brand {
+        display: grid;
+        gap: 8px;
+      }
+
+      .brand strong {
+        font-size: 18px;
+        font-weight: 950;
+      }
+
+      .brand span,
+      .rail-link,
+      .label,
+      .meta,
+      .tiny {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .mode-list {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+
+      .mode-button {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 12px 1fr;
+        gap: 10px;
+        align-items: center;
+        padding: 12px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--ink);
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .mode-button::before {
+        content: "";
+        width: 12px;
+        height: 12px;
+        background: var(--blue);
+      }
+
+      .mode-button:nth-child(2)::before {
+        background: var(--red);
+      }
+
+      .mode-button:nth-child(3)::before {
+        background: var(--teal);
+      }
+
+      .mode-button:nth-child(4)::before {
+        background: var(--green);
+      }
+
+      .mode-button[aria-pressed="true"] {
+        border-color: #c9bda8;
+        background: rgba(255, 254, 250, 0.82);
+      }
+
+      .mode-button span {
+        font-weight: 850;
+      }
+
+      .rail-link {
+        text-decoration: underline;
+        text-decoration-color: rgba(102, 114, 124, 0.3);
+        text-underline-offset: 4px;
+      }
+
+      main {
+        min-width: 0;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .top {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 24px;
+        align-items: end;
+        padding: 34px 38px 26px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      h1,
+      h2,
+      h3,
+      p,
+      li,
+      th,
+      td {
+        letter-spacing: 0;
+      }
+
+      h1 {
+        max-width: 820px;
+        margin: 0;
+        font-size: 58px;
+        line-height: 0.98;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 26px;
+        line-height: 1.1;
+      }
+
+      h3,
+      p,
+      ol,
+      ul {
+        margin: 0;
+      }
+
+      p,
+      li,
+      td,
+      th {
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.45;
+      }
+
+      .status {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        width: max-content;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--green);
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .status::before {
+        content: "";
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--green);
+      }
+
+      .stage-wrap {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 280px;
+        gap: 18px;
+        padding: 24px 38px 110px;
+      }
+
+      .section {
+        min-width: 0;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .stage {
+        min-height: 620px;
+        display: grid;
+        grid-template-rows: auto 1fr;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: 0 20px 46px rgba(21, 23, 26, 0.08);
+      }
+
+      .stage-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        align-items: center;
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .pill {
+        padding: 5px 8px;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .canvas {
+        position: relative;
+        display: grid;
+        gap: 18px;
+        align-content: start;
+        padding: 22px;
+      }
+
+      .board {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .column {
+        min-height: 258px;
+        display: grid;
+        gap: 12px;
+        align-content: start;
+        padding: 14px;
+        border: 1px solid var(--line);
+        background: #f9f7f1;
+      }
+
+      .column h3 {
+        color: var(--ink);
+        font-size: 14px;
+        text-transform: uppercase;
+      }
+
+      .card {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        border: 1px solid #ded8ce;
+        background: #fff;
+      }
+
+      .card strong {
+        font-size: 15px;
+      }
+
+      .card p {
+        font-size: 13px;
+      }
+
+      .wide-card {
+        display: grid;
+        gap: 14px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+
+      .diff {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .diff pre {
+        min-height: 220px;
+        margin: 0;
+        padding: 14px;
+        overflow: auto;
+        background: #16181d;
+        color: #f5f0e8;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .config-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .field {
+        display: grid;
+        gap: 8px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+
+      .field input {
+        width: 100%;
+        min-height: 38px;
+        border: 1px solid #cfc7ba;
+        padding: 8px 10px;
+        background: #fdfbf7;
+      }
+
+      .thumb-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .thumb {
+        min-height: 180px;
+        display: grid;
+        align-content: end;
+        gap: 8px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        background:
+          linear-gradient(135deg, rgba(8, 127, 140, 0.18), transparent 48%),
+          #fff;
+      }
+
+      .thumb:nth-child(2) {
+        background:
+          linear-gradient(135deg, rgba(217, 45, 32, 0.16), transparent 48%),
+          #fff;
+      }
+
+      .thumb:nth-child(3) {
+        background:
+          linear-gradient(135deg, rgba(36, 84, 166, 0.16), transparent 48%),
+          #fff;
+      }
+
+      .side {
+        display: grid;
+        gap: 14px;
+        align-content: start;
+      }
+
+      .side-panel {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .mini-list {
+        display: grid;
+        gap: 8px;
+        padding: 0;
+        list-style: none;
+      }
+
+      .mini-list li {
+        display: grid;
+        grid-template-columns: 18px 1fr;
+        gap: 8px;
+      }
+
+      .mini-list li::before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        margin-top: 6px;
+        background: var(--teal);
+      }
+
+      .sample-tools {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+
+      .sample-tool {
+        min-height: 46px;
+        border: 1px solid var(--line);
+        background: #f9f7f1;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 850;
+      }
+
+      [data-demo-panel] {
+        display: none;
+      }
+
+      [data-demo-panel][data-active] {
+        display: grid;
+      }
+
+      @media (max-width: 980px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+
+        .rail {
+          position: static;
+          height: auto;
+          grid-template-rows: auto;
+        }
+
+        .mode-list {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .top,
+        .stage-wrap {
+          grid-template-columns: 1fr;
+          padding-inline: 22px;
+        }
+
+        h1 {
+          font-size: 42px;
+        }
+
+        .board,
+        .diff,
+        .config-grid,
+        .thumb-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
   </head>
-  <body data-hs-comment-host="">
-    <div class="shell">
-      <header class="site-header">
-        <p class="brand">Hyperspace</p>
-        <nav class="site-nav" aria-label="Page sections">
-          <a href="#review">Review Loop</a>
-          <a href="#runtime">Runtime</a>
-          <a href="#host">Host</a>
-        </nav>
-      </header>
+  <body data-hs-comment-host>
+    <div class="app">
+      <aside class="rail" data-hs-no-edit>
+        <div class="brand">
+          <strong>Hyperspace</strong>
+          <span>HTML files become review surfaces.</span>
+        </div>
 
-      <main data-hs-comment-host="">
-        <section>
-          <p class="eyebrow">HTML Review Runtime</p>
-          <h1>Review any HTML file without changing its source.</h1>
-        </section>
+        <div class="mode-list" aria-label="Demo modes">
+          <button class="mode-button" type="button" data-demo-mode="decision" aria-pressed="true">
+            <span>Decision</span>
+          </button>
+          <button class="mode-button" type="button" data-demo-mode="code" aria-pressed="false">
+            <span>Code</span>
+          </button>
+          <button class="mode-button" type="button" data-demo-mode="config" aria-pressed="false">
+            <span>Config</span>
+          </button>
+          <button class="mode-button" type="button" data-demo-mode="design" aria-pressed="false">
+            <span>Design</span>
+          </button>
+        </div>
 
-        <p class="lede">
-          Hyperspace adds an external review layer to ordinary HTML: a toolbar,
-          comments, structured list controls, quiet saves, and cleanup on
-          persistence. Page styling stays with the HTML document; the review UI
-          lives in <code>hyperspace.js</code> and <code>hyperspace.css</code>.
-        </p>
+        <a class="rail-link" href="./background.html">Background</a>
+      </aside>
 
-        <section id="review" class="section split" data-hs-comment-host="">
+      <main data-hs-comment-host>
+        <header class="top" data-hs-no-edit>
           <div>
-            <h2>Review Loop</h2>
+            <p class="label">Local browser workspace</p>
+            <h1>Review the thing itself.</h1>
           </div>
-          <div>
-            <p>
-              Serve a project folder, open any <code>.html</code> or
-              <code>.htmlclay</code> file, then use the edit toggle, comment
-              tool, and save button without embedding application chrome in the
-              source document.
-            </p>
-            <ol>
-              <li>Click the comment tool and place a note near the relevant content.</li>
-              <li>Turn edit mode on only when text or list content needs direct changes.</li>
-              <li>Save writes clean HTML back to disk with runtime UI removed.</li>
-            </ol>
-          </div>
-        </section>
+          <div class="status">Saveable HTML</div>
+        </header>
 
-        <section id="runtime" class="section">
-          <h2>Runtime Boundary</h2>
-          <div class="table-wrap">
-            <table class="comparison">
-              <thead>
-                <tr>
-                  <th>Ready</th>
-                  <th>Surface</th>
-                  <th>Boundary</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><input type="checkbox" checked=""></td>
-                  <td>External toolbar runtime.</td>
-                  <td>
-                    The toolbar, tool buttons, icons, list controls, and save
-                    toast styling are supplied by external runtime assets.
-                  </td>
-                </tr>
-                <tr>
-                  <td><input type="checkbox" checked=""></td>
-                  <td>Clean artifact source.</td>
-                  <td>
-                    Saved HTML keeps document content, user comments, and
-                    durable transform state, but strips runtime-only scripts,
-                    links, toolbar nodes, and transient edit attributes.
-                  </td>
-                </tr>
-                <tr>
-                  <td><input type="checkbox" checked=""></td>
-                  <td>Ordinary HTML compatibility.</td>
-                  <td>
-                    The local host can inject Hyperspace into any served HTML
-                    page, including pages that were not authored in this repo.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <div class="stage-wrap">
+          <section class="section split" data-hs-comment-host>
+            <div class="stage">
+              <div class="stage-head" data-hs-no-edit>
+                <div>
+                  <p class="label">Live artifact</p>
+                  <h2 data-demo-title>Decision board</h2>
+                </div>
+                <div class="pills">
+                  <span class="pill">comment</span>
+                  <span class="pill">edit</span>
+                  <span class="pill">save</span>
+                </div>
+              </div>
 
-        <section id="host" class="section">
-          <h2>Host Contract</h2>
-          <div class="details-list">
-            <details open="">
-              <summary>External assets</summary>
-              <p>
-                HTML responses receive a removable stylesheet link, HyperclayJS
-                script, and Hyperspace script. Those tags are marked as runtime
-                elements and are removed before the file is persisted.
-              </p>
-            </details>
-            <details open="">
-              <summary>Save cleanup</summary>
-              <p>
-                The save endpoint accepts Hyperclay-compatible page snapshots,
-                validates the target path, creates a backup, strips runtime UI,
-                and writes the resulting HTML atomically.
-              </p>
-            </details>
-          </div>
-        </section>
+              <div class="canvas">
+                <div data-demo-panel="decision" data-active>
+                  <div class="board">
+                    <article class="column">
+                      <h3>Options</h3>
+                      <div class="card">
+                        <strong>Keep Markdown notes</strong>
+                        <p>Fast, but review state is detached.</p>
+                      </div>
+                      <div class="card">
+                        <strong>Use HTML artifacts</strong>
+                        <p>Richer, but needs in-place feedback.</p>
+                      </div>
+                    </article>
+                    <article class="column">
+                      <h3>Risks</h3>
+                      <div class="card">
+                        <strong>Copy-paste drift</strong>
+                        <p>User feedback can leave the file behind.</p>
+                      </div>
+                      <div class="card">
+                        <strong>Opaque editors</strong>
+                        <p>Too much app state makes agents less useful.</p>
+                      </div>
+                    </article>
+                    <article class="column">
+                      <h3>Choice</h3>
+                      <div class="card">
+                        <strong>Browser as project frontend</strong>
+                        <p>Annotate, edit, save, continue.</p>
+                      </div>
+                    </article>
+                  </div>
+                </div>
 
-        <section class="section">
-          <h2>Durable Comment Shape</h2>
-          <pre><code>&lt;section data-hs-comment-host&gt;
-  &lt;p&gt;Copy that needs review&lt;/p&gt;
+                <div data-demo-panel="code">
+                  <article class="wide-card">
+                    <h3>Code comparison</h3>
+                    <div class="diff">
+                      <pre>before
 
-  &lt;aside data-hs-comment movable style="transform: translate(72px, 120px)"&gt;
-    &lt;p&gt;Clarify this before shipping.&lt;/p&gt;
-  &lt;/aside&gt;
-&lt;/section&gt;</code></pre>
-        </section>
+- summary in chat
+- copied feedback
+- lost context</pre>
+                      <pre>after
+
++ note in the file
++ edit on the page
++ agent reads HTML</pre>
+                    </div>
+                  </article>
+                </div>
+
+                <div data-demo-panel="config">
+                  <article class="wide-card">
+                    <h3>Durable config editor</h3>
+                    <div class="config-grid">
+                      <label class="field">
+                        <span class="meta">Route</span>
+                        <input value="/review/:artifact">
+                      </label>
+                      <label class="field">
+                        <span class="meta">Mode</span>
+                        <input value="comment + edit + save">
+                      </label>
+                      <label class="field">
+                        <span class="meta">Backup</span>
+                        <input value="before every write">
+                      </label>
+                      <label class="field">
+                        <span class="meta">Output</span>
+                        <input value="clean html">
+                      </label>
+                    </div>
+                  </article>
+                </div>
+
+                <div data-demo-panel="design">
+                  <article class="wide-card">
+                    <h3>Design review</h3>
+                    <div class="thumb-grid">
+                      <div class="thumb">
+                        <strong>Dense dashboard</strong>
+                        <p>Comment exact cells.</p>
+                      </div>
+                      <div class="thumb">
+                        <strong>Landing page</strong>
+                        <p>Edit copy in place.</p>
+                      </div>
+                      <div class="thumb">
+                        <strong>Prototype</strong>
+                        <p>Save the reviewed state.</p>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside class="side" data-hs-no-edit>
+            <section class="side-panel">
+              <p class="label">Loop</p>
+              <div class="sample-tools">
+                <button class="sample-tool" type="button">Open</button>
+                <button class="sample-tool" type="button">Mark</button>
+                <button class="sample-tool" type="button">Save</button>
+              </div>
+            </section>
+
+            <section class="side-panel">
+              <p class="label">Persists</p>
+              <div class="sample-tools">
+                <button class="sample-tool" type="button">Text</button>
+                <button class="sample-tool" type="button">Notes</button>
+                <button class="sample-tool" type="button">Lists</button>
+              </div>
+              <p class="tiny">Clean HTML</p>
+            </section>
+          </aside>
+        </div>
       </main>
     </div>
-  
 
+    <script>
+      var modeTitles = {
+        decision: "Decision board",
+        code: "Code comparison",
+        config: "Config editor",
+        design: "Design review",
+      };
+      var buttons = Array.from(document.querySelectorAll("[data-demo-mode]"));
+      var panels = Array.from(document.querySelectorAll("[data-demo-panel]"));
+      var title = document.querySelector("[data-demo-title]");
 
+      buttons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          var mode = button.getAttribute("data-demo-mode") || "decision";
 
+          buttons.forEach(function (candidate) {
+            candidate.setAttribute("aria-pressed", String(candidate === button));
+          });
 
+          panels.forEach(function (panel) {
+            panel.toggleAttribute(
+              "data-active",
+              panel.getAttribute("data-demo-panel") === mode
+            );
+          });
 
-</body></html>
+          if (title) {
+            title.textContent = modeTitles[mode] || modeTitles.decision;
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

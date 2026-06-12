@@ -13,7 +13,9 @@ Planning decisions for this project must be authored as HTML documents.
 - Before creating or expanding a plan, check whether the needed facts are
   already known and whether the document will change a decision or next action.
 - Avoid documenting for its own sake.
-- Prefer existing project styling in `docs.css` for planning pages.
+- Use artifact-specific styling for planning and presentation pages when it
+  serves the document better. Do not default to `docs.css` or copied reference
+  styles when a custom presentation would be clearer.
 - Checklists, plans, roadmaps, and design-decision documents are user-editable
   review artifacts. Use ordinary semantic HTML as individual editable items and
   live controls for checklist state instead of disabled status markup.

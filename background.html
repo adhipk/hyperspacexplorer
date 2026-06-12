@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Hyperspace Background</title>
+    <style>
+      :root {
+        --ink: #17191d;
+        --muted: #53606a;
+        --line: #d7dde1;
+        --paper: #fbfaf6;
+        --panel: #ffffff;
+        --teal: #087f8c;
+        --blue: #2454a6;
+        --red: #d92d20;
+        --amber: #b7791f;
+        --green: #1f7a4d;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+      }
+
+      a {
+        color: var(--blue);
+        text-decoration-color: rgba(36, 84, 166, 0.35);
+        text-underline-offset: 4px;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        min-height: 62px;
+        padding: 0 32px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(251, 250, 246, 0.92);
+        backdrop-filter: blur(12px);
+      }
+
+      .brand {
+        margin: 0;
+        color: var(--ink);
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+      }
+
+      nav a {
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      main {
+        display: grid;
+        gap: 0;
+      }
+
+      section {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .wrap {
+        width: min(1120px, calc(100% - 44px));
+        margin: 0 auto;
+      }
+
+      .hero {
+        min-height: 560px;
+        display: grid;
+        align-items: center;
+        padding: 74px 0 48px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);
+        gap: 52px;
+        align-items: center;
+      }
+
+      .eyebrow {
+        margin: 0 0 18px;
+        color: var(--teal);
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p,
+      li,
+      th,
+      td {
+        letter-spacing: 0;
+      }
+
+      h1 {
+        max-width: 780px;
+        margin: 0;
+        font-size: 76px;
+        line-height: 0.94;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 38px;
+        line-height: 1.06;
+      }
+
+      h3 {
+        margin: 0;
+        font-size: 17px;
+        line-height: 1.28;
+      }
+
+      p,
+      li,
+      td,
+      th {
+        font-size: 17px;
+        line-height: 1.58;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .lede {
+        max-width: 720px;
+        margin-top: 28px;
+        color: #2f3b44;
+        font-size: 21px;
+        line-height: 1.45;
+      }
+
+      .loop-board {
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+        border: 1px solid #cbd3d8;
+        background: #f2f5f7;
+        box-shadow: 0 24px 54px rgba(23, 25, 29, 0.12);
+      }
+
+      .loop-title {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        color: #34424c;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .browser-frame {
+        min-height: 286px;
+        border: 1px solid #c7ced4;
+        background: var(--panel);
+      }
+
+      .chrome {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 34px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--line);
+        color: #7a858d;
+        font-size: 12px;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--red);
+      }
+
+      .dot:nth-child(2) {
+        background: var(--amber);
+      }
+
+      .dot:nth-child(3) {
+        background: var(--green);
+      }
+
+      .artifact {
+        display: grid;
+        gap: 14px;
+        padding: 22px;
+      }
+
+      .artifact-row {
+        display: grid;
+        grid-template-columns: 78px 1fr;
+        gap: 14px;
+        align-items: start;
+      }
+
+      .tag {
+        width: fit-content;
+        padding: 4px 7px;
+        color: #fff;
+        background: var(--blue);
+        font-size: 11px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .mark {
+        border-left: 3px solid var(--red);
+        padding-left: 12px;
+        color: #3a4650;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .toolbar-strip {
+        display: flex;
+        gap: 10px;
+        padding: 12px;
+        border-top: 1px solid var(--line);
+      }
+
+      .tool {
+        width: 34px;
+        height: 34px;
+        border: 1px solid #c5cdd3;
+        background: #fff;
+      }
+
+      .tool.active {
+        border-color: var(--teal);
+        box-shadow: inset 0 0 0 2px rgba(8, 127, 140, 0.16);
+      }
+
+      .section-pad {
+        padding: 70px 0;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1fr);
+        gap: 48px;
+        align-items: start;
+      }
+
+      .stack {
+        display: grid;
+        gap: 18px;
+      }
+
+      .argument-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .argument,
+      .use-case {
+        display: grid;
+        gap: 12px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .argument strong {
+        color: var(--ink);
+      }
+
+      .comparison {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .lane {
+        display: grid;
+        gap: 14px;
+        align-content: start;
+        padding: 18px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .lane.bad {
+        border-top: 4px solid var(--amber);
+      }
+
+      .lane.good {
+        border-top: 4px solid var(--teal);
+      }
+
+      .steps {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .steps li {
+        display: grid;
+        grid-template-columns: 28px 1fr;
+        gap: 12px;
+        align-items: start;
+        color: var(--muted);
+      }
+
+      .num {
+        display: inline-grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        color: #fff;
+        background: var(--ink);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .use-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .use-case {
+        min-height: 150px;
+        border-left: 4px solid var(--blue);
+      }
+
+      .use-case:nth-child(2) {
+        border-left-color: var(--red);
+      }
+
+      .use-case:nth-child(3) {
+        border-left-color: var(--teal);
+      }
+
+      .use-case:nth-child(4) {
+        border-left-color: var(--amber);
+      }
+
+      .use-case:nth-child(5) {
+        border-left-color: var(--green);
+      }
+
+      .use-case:nth-child(6) {
+        border-left-color: #6b46c1;
+      }
+
+      .source-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding-left: 22px;
+      }
+
+      .source-list li {
+        color: var(--muted);
+      }
+
+      code {
+        padding: 2px 5px;
+        background: #eef1f3;
+        color: #26313a;
+        font-size: 0.92em;
+      }
+
+      @media (max-width: 860px) {
+        .topbar {
+          position: static;
+          align-items: flex-start;
+          flex-direction: column;
+          padding: 18px 22px;
+        }
+
+        .hero {
+          min-height: 0;
+          padding-top: 48px;
+        }
+
+        .hero-grid,
+        .split,
+        .comparison,
+        .argument-grid,
+        .use-grid {
+          grid-template-columns: 1fr;
+        }
+
+        h1 {
+          font-size: 48px;
+          line-height: 1;
+        }
+
+        h2 {
+          font-size: 30px;
+        }
+      }
+    </style>
+  </head>
+  <body data-hs-comment-host>
+    <header class="topbar">
+      <p class="brand">Hyperspace</p>
+      <nav aria-label="Background sections">
+        <a href="./index.html">Demo</a>
+        <a href="#gap">Gap</a>
+        <a href="#loop">Loop</a>
+        <a href="#showcase">Showcase</a>
+        <a href="#sources">Sources</a>
+      </nav>
+    </header>
+
+    <main data-hs-comment-host>
+      <section class="hero">
+        <div class="wrap hero-grid">
+          <div>
+            <p class="eyebrow">Background</p>
+            <h1>The browser can be the frontend for any project.</h1>
+            <p class="lede">
+              Agents are already good at making rich HTML artifacts. Hyperspace
+              turns those artifacts from static outputs into editable project
+              surfaces: open the file, review it in place, save it back to disk,
+              and let the agent continue from the source.
+            </p>
+          </div>
+
+          <div class="loop-board" aria-label="Hyperspace review loop diagram">
+            <div class="loop-title">
+              <span>local file</span>
+              <span>browser review layer</span>
+            </div>
+            <div class="browser-frame">
+              <div class="chrome">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span>artifact.html</span>
+              </div>
+              <div class="artifact">
+                <div class="artifact-row">
+                  <span class="tag">HTML</span>
+                  <p>Decision page, diff review, config editor, explainer, or report.</p>
+                </div>
+                <div class="artifact-row">
+                  <span class="tag">Review</span>
+                  <p class="mark">Comment sits near the content and stays readable in source.</p>
+                </div>
+                <div class="artifact-row">
+                  <span class="tag">Save</span>
+                  <p>Runtime UI is stripped. The document remains ordinary HTML.</p>
+                </div>
+              </div>
+              <div class="toolbar-strip" aria-hidden="true">
+                <span class="tool active"></span>
+                <span class="tool"></span>
+                <span class="tool"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-pad" id="gap">
+        <div class="wrap split">
+          <div>
+            <p class="eyebrow">The Gap</p>
+            <h2>Copying an HTML artifact back into Markdown collapses the loop.</h2>
+          </div>
+          <div class="stack">
+            <p>
+              The HTML-artifact pattern is strong because HTML can carry visual
+              structure, interaction, spatial context, tables, diagrams, and
+              domain-specific controls. But when the next action is copy,
+              paste, or export-to-prompt, the browser is still just a preview.
+            </p>
+            <p>
+              Hyperspace makes the browser the place where the work happens.
+              The artifact stays in the project. The user edits and marks it up
+              directly. The agent reads the saved result from disk.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-pad" id="loop">
+        <div class="wrap stack">
+          <div class="split">
+            <div>
+              <p class="eyebrow">Working Model</p>
+              <h2>Same HTML artifact. Better feedback path.</h2>
+            </div>
+            <p>
+              Hyperspace does not try to replace the agent, the code editor, or
+              Hyperclay's save primitives. It adds the smallest useful review
+              layer on top of ordinary HTML.
+            </p>
+          </div>
+
+          <div class="comparison">
+            <article class="lane bad">
+              <h3>Current artifact loop</h3>
+              <ol class="steps">
+                <li><span class="num">1</span><span>Agent generates a rich HTML artifact.</span></li>
+                <li><span class="num">2</span><span>User opens it and reacts visually.</span></li>
+                <li><span class="num">3</span><span>User translates feedback into chat, Markdown, or copied text.</span></li>
+                <li><span class="num">4</span><span>Agent has to infer what changed.</span></li>
+              </ol>
+            </article>
+
+            <article class="lane good">
+              <h3>Hyperspace loop</h3>
+              <ol class="steps">
+                <li><span class="num">1</span><span>Agent creates ordinary HTML in the project.</span></li>
+                <li><span class="num">2</span><span>Browser injects the external review runtime.</span></li>
+                <li><span class="num">3</span><span>User edits, comments, reorders, or marks up in place.</span></li>
+                <li><span class="num">4</span><span>Local save writes clean HTML back to disk for the agent.</span></li>
+              </ol>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-pad">
+        <div class="wrap stack">
+          <div class="split">
+            <div>
+              <p class="eyebrow">Product Thesis</p>
+              <h2>Keep the artifact readable. Move the tools outside it.</h2>
+            </div>
+            <div class="argument-grid">
+              <article class="argument">
+                <h3>Ordinary source</h3>
+                <p>
+                  The saved file remains readable HTML with durable comments
+                  and user edits, not an app bundle or opaque editor payload.
+                </p>
+              </article>
+              <article class="argument">
+                <h3>External controls</h3>
+                <p>
+                  Toolbar UI, edit affordances, list controls, and toasts live
+                  in <strong>hyperspace.js</strong> and <strong>hyperspace.css</strong>.
+                </p>
+              </article>
+              <article class="argument">
+                <h3>Agent-native handoff</h3>
+                <p>
+                  Skills tell coding agents how to author artifacts, interpret
+                  durable comments, and reconcile reviewed HTML back into work.
+                </p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-pad" id="showcase">
+        <div class="wrap stack">
+          <div class="split">
+            <div>
+              <p class="eyebrow">Showcase Surface</p>
+              <h2>Do not copy the templates. Prove the loop.</h2>
+            </div>
+            <p>
+              The examples that inspired this project are useful references,
+              but Hyperspace should showcase cases where in-place edits and
+              durable review state matter.
+            </p>
+          </div>
+
+          <div class="use-grid">
+            <article class="use-case">
+              <h3>Decision workbench</h3>
+              <p>Compare proposals, mark the chosen path, and leave unresolved questions beside the relevant tradeoff.</p>
+            </article>
+            <article class="use-case">
+              <h3>Code comparison room</h3>
+              <p>Review competing implementations with diffs, module maps, severity notes, and accepted edits.</p>
+            </article>
+            <article class="use-case">
+              <h3>Design critique wall</h3>
+              <p>Show component states and interaction variants, then annotate exact moments or copy that need revision.</p>
+            </article>
+            <article class="use-case">
+              <h3>Durable config editor</h3>
+              <p>Edit feature flags, prompts, routes, or JSON-like settings with constraints and save the reviewed result.</p>
+            </article>
+            <article class="use-case">
+              <h3>Project explainer</h3>
+              <p>Turn a repository, incident, or subsystem into a readable map that the user can correct in place.</p>
+            </article>
+            <article class="use-case">
+              <h3>Triage board</h3>
+              <p>Bucket tasks, bugs, research notes, or feedback into a live board where final state persists as HTML.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-pad" id="sources">
+        <div class="wrap split">
+          <div>
+            <p class="eyebrow">Starting Points</p>
+            <h2>References, not constraints.</h2>
+          </div>
+          <ol class="source-list">
+            <li>
+              <a href="https://claude.com/blog/using-claude-code-the-unreasonable-effectiveness-of-html">Using Claude Code: The unreasonable effectiveness of HTML</a>
+            </li>
+            <li>
+              <a href="https://thariqs.github.io/html-effectiveness/">The unreasonable effectiveness of HTML examples</a>
+            </li>
+            <li>
+              <a href="https://github.com/anthropics/html-effectiveness">anthropics/html-effectiveness</a>
+            </li>
+          </ol>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

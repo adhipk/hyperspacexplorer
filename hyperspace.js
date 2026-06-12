@@ -467,7 +467,9 @@
   function isEditableItemElement(element) {
     if (
       !element.matches(editableItemSelector) ||
-      element.closest("[data-hs-comment], [data-hs-runtime], pre, code, script, style")
+      element.closest(
+        "[data-hs-comment], [data-hs-runtime], [data-hs-no-edit], pre, code, script, style"
+      )
     ) {
       return false;
     }
@@ -584,7 +586,9 @@
     return (
       list.matches(editableListSelector) &&
       Boolean(list.querySelector(":scope > li")) &&
-      !list.closest("[data-hs-comment], [data-hs-runtime], pre, code, script, style, nav")
+      !list.closest(
+        "[data-hs-comment], [data-hs-runtime], [data-hs-no-edit], pre, code, script, style, nav"
+      )
     );
   }
 
