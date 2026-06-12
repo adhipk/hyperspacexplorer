@@ -1,10 +1,11 @@
-<!DOCTYPE html><html lang="en" editmode="false" pageowner="false" savestatus="saved"><head>
+<!DOCTYPE html>
+<html lang="en"><head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Hyperspace Project Notes</title>
     <link rel="stylesheet" href="./docs.css">
-  <style data-name="option-visibility" mutations-ignore=""></style></head>
-  <body>
+  </head>
+  <body data-hs-comment-host="">
     <div class="shell">
       <header class="site-header">
         <p class="brand">Hyperspace</p>
@@ -12,6 +13,8 @@
           <a href="./index.html">Overview</a>
           <a href="./current-state.html">Current State</a>
           <a href="./phase2.html">Phase 2</a>
+          <a href="./hyperclay-local-server.html">Local Server</a>
+          <a href="./distributables.html">Distributables</a>
           <a href="./plan.html">Plan</a>
           <a href="./comment-isolation.html">Comment Isolation</a>
           <a href="./design-doc.svg">Design SVG</a>
@@ -21,10 +24,10 @@
       <main data-hs-comment-host="">
         <section>
           <p class="eyebrow">Project Documentation</p>
-          <h1 editmode:contenteditable="" inert-contenteditable="true">HTML documents that can be marked up in place.</h1>
+          <h1 editmode:contenteditable="">HTML documents that can be marked up in place.</h1>
         </section>
 
-        <p class="lede" editmode:contenteditable="" inert-contenteditable="true">
+        <p class="lede" editmode:contenteditable="">
           Hyperspace treats an HTML file as the readable source of truth. The
           page can contain editable regions, interactive form-like controls, and
           nearby comments that remain meaningful in raw HTML. Edit is good</p>
@@ -59,10 +62,10 @@
 
         <section class="section split" data-hs-comment-host="">
           <div>
-            <h2 editmode:contenteditable="" inert-contenteditable="true">Basic comment behavior</h2>
+            <h2 editmode:contenteditable="">Basic comment behavior</h2>
           </div>
           <div>
-            <p editmode:contenteditable="" inert-contenteditable="true">
+            <p editmode:contenteditable="">
               Select the comment tool, click where the note belongs, type the
               comment, and click away. The comment is inserted into the closest
               document container and can float visually through CSS position
@@ -81,9 +84,59 @@
   &lt;/aside&gt;
 &lt;/section&gt;</code></pre>
         </section>
-      </main>
+      <aside data-hs-comment="" style="transform: translate(899.875px, 230.121px); z-index: 3;" movable=""><p editmode:contenteditable="">font looks good however we also need to consider how it looks on dark websites.<br></p></aside><aside data-hs-comment="" style="transform: translate(898px, 372px);" movable=""><p editmode:contenteditable="">active tool is reset on focus loss, I can add multiple comments.</p></aside><aside data-hs-comment="" style="transform: translate(948px, 515px);" movable=""><p editmode:contenteditable="">Editing and marking up are seperate operations,<br>we have 3 UI states. and tied to the entire application.<br>editable content has a small&nbsp;&lt;svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil"&gt;&lt;path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"&gt;&lt;/path&gt;&lt;path d="m15 5 4 4"&gt;&lt;/path&gt;&lt;/svg&gt;<br>edit icon.&nbsp;<br>steal the ux from excalidraw<br>I want it to be basically the same</p><div><br></div><p></p></aside><aside data-hs-comment="" style="transform: translate(301.044px, 13.2227px); z-index: 1;" movable=""><p editmode:contenteditable="">I cant pick where in the text I want to edit, If i have a long font and I want to edit something in the middle its impossible.</p></aside><aside data-hs-comment="" style="transform: translate(862px, 109px);" movable=""><p editmode:contenteditable="">the icons you are using are broken use standard lucide icons.</p><div><br></div><p></p></aside></main>
     </div>
   
+
+
+
+
+
+
+
+
+
+
+<aside data-hs-comment="" style="transform: translate(114px, 87px);" movable=""><p editmode:contenteditable="">your cursor doesnt line up<br><br></p></aside>
+
+
+
+
+<aside data-hs-comment="" style="transform: translate(1295.52px, 1490.65px); z-index: 6;" movable=""><p editmode:contenteditable="">Comment boxes<div>should be resizable like excalidraw<br><br></div></p></aside>
+
+
+
+
+
+
+
+
+
+
+
+<aside data-hs-comment="" style="transform: translate(60.2657px, 809.922px); z-index: 9;" movable=""><p editmode:contenteditable="">the comment color is garbage and unreadable&nbsp;<br>the resize box is not visible box resizing shoud be automatic to size of the text.<br>stick to plain red no shadow weirdness visible on everything.</p><div><br></div><p></p></aside>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

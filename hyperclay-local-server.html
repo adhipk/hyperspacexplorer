@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Hyperclay Local Server Overview</title>
+    <link rel="stylesheet" href="./docs.css">
+  </head>
+  <body>
+    <div class="shell">
+      <header class="site-header">
+        <p class="brand">Hyperspace</p>
+        <nav class="site-nav" aria-label="Project pages">
+          <a href="./index.html">Overview</a>
+          <a href="./current-state.html">Current State</a>
+          <a href="./phase2.html">Phase 2</a>
+          <a href="./hyperclay-local-server.html">Local Server</a>
+          <a href="./distributables.html">Distributables</a>
+          <a href="./plan.html">Plan</a>
+          <a href="./comment-isolation.html">Comment Isolation</a>
+          <a href="./design-doc.svg">Design SVG</a>
+        </nav>
+      </header>
+
+      <main data-hs-comment-host="">
+        <section>
+          <p class="eyebrow">Reference Overview</p>
+          <h1 editmode:contenteditable="">What Hyperclay Local's server does.</h1>
+        </section>
+
+        <p class="lede" editmode:contenteditable="">
+          Hyperclay Local is packaged as an Electron app, but the reusable core
+          for Hyperspace is its local server. That server turns a folder of
+          ordinary <code>.html</code> and <code>.htmlclay</code> files into
+          editable, self-saving Hyperclay documents.
+        </p>
+
+        <section class="section">
+          <h2>Core responsibilities</h2>
+          <div class="facts">
+            <div class="fact">
+              <h3>Serve files</h3>
+              <p>
+                It serves a selected local folder, including HTML documents,
+                assets, extension-aware HTML routes, and directory listings.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>Make local user owner</h3>
+              <p>
+                It sets local admin/login cookies so HyperclayJS can restore
+                owner-only edit controls when pages load from localhost.
+              </p>
+            </div>
+            <div class="fact">
+              <h3>Persist saves</h3>
+              <p>
+                It accepts Hyperclay save requests, validates the file target,
+                creates backups, and writes the saved HTML back to disk.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section split">
+          <div>
+            <h2>Save contract</h2>
+          </div>
+          <pre><code>POST /_/save
+Page-URL: http://localhost:4321/path/to/page.html
+
+&lt;!DOCTYPE html&gt;...</code></pre>
+        </section>
+
+        <section class="section">
+          <h2>Save flow</h2>
+          <ol>
+            <li>
+              HyperclayJS captures a cleaned page snapshot in the browser.
+            </li>
+            <li>
+              The browser posts the HTML to <code>/_/save</code> with a
+              <code>Page-URL</code> header.
+            </li>
+            <li>
+              The server maps <code>/_/save</code> to its save handler and
+              resolves the file path from <code>Page-URL</code>.
+            </li>
+            <li>
+              It rejects invalid paths, dotfiles, traversal attempts, absolute
+              paths, and non-HTML save targets.
+            </li>
+            <li>
+              It backs up the existing file under
+              <code>sites-versions/&lt;site&gt;/&lt;timestamp&gt;.html</code>.
+            </li>
+            <li>
+              It formats and writes the new HTML, then returns
+              <code>{ "msg": "Saved", "msgType": "success" }</code>.
+            </li>
+          </ol>
+        </section>
+
+        <section class="section">
+          <h2>Request bodies</h2>
+          <div class="decision-grid">
+            <article class="decision">
+              <span class="status-pill accepted">Supported</span>
+              <h3>Plain HTML</h3>
+              <p>
+                The server accepts a plain text HTML body for compatibility with
+                the hosted Hyperclay save shape.
+              </p>
+            </article>
+            <article class="decision">
+              <span class="status-pill accepted">Supported</span>
+              <h3>Local JSON</h3>
+              <p>
+                It also accepts JSON with <code>content</code> and optional
+                <code>snapshotHtml</code>, which local sync features can use.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Extra server features</h2>
+          <div class="details-list">
+            <details open="">
+              <summary>System routes</summary>
+              <p>
+                Hyperclay uses <code>/_/...</code> as a system-route marker.
+                The local server strips the marker so routes like
+                <code>/_/save</code> reach the bare save handler.
+              </p>
+            </details>
+            <details>
+              <summary>Tailwind output</summary>
+              <p>
+                When a saved page uses Hyperclay's Tailwind convention, the
+                server can generate scoped CSS files under
+                <code>tailwindcss/</code>.
+              </p>
+            </details>
+            <details>
+              <summary>Live sync</summary>
+              <p>
+                The server includes local browser-to-browser live sync routes.
+                That is useful for Hyperclay Local, but not required for the
+                first Hyperspace layer.
+              </p>
+            </details>
+            <details>
+              <summary>Cloud sync</summary>
+              <p>
+                The Electron app adds cloud sync, encrypted API keys, tray UI,
+                status controls, and update behavior around the server. Those
+                features are outside the minimal server core Hyperspace wants.
+              </p>
+            </details>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Hyperspace reuse</h2>
+          <p>
+            The preferred path is to reuse or extract this server core without
+            the Electron shell. Hyperspace should focus on HTML conventions,
+            the toolbar, comments, and tools, while the Hyperclay server core
+            continues to own local file serving, owner cookies, save handling,
+            validation, backups, and disk writes.
+          </p>
+        </section>
+
+        <section class="section split">
+          <div>
+            <h2>Sources</h2>
+          </div>
+          <div>
+            <p>
+              Based on
+              <a href="https://github.com/panphora/hyperclay-local">panphora/hyperclay-local</a>,
+              especially its README and <code>src/main/server.js</code>.
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+  
+
+
+
+
+
+
+
+
+
+</body></html>

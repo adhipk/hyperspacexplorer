@@ -14,6 +14,8 @@
           <a href="./index.html">Overview</a>
           <a href="./current-state.html">Current State</a>
           <a href="./phase2.html">Phase 2</a>
+          <a href="./hyperclay-local-server.html">Local Server</a>
+          <a href="./distributables.html">Distributables</a>
           <a href="./plan.html">Plan</a>
           <a href="./comment-isolation.html">Comment Isolation</a>
           <a href="./design-doc.svg">Design SVG</a>
@@ -29,10 +31,12 @@
         <p class="lede">
           The prototype proved the workflow: AI can generate ordinary HTML,
           users can edit and annotate it in place, and the edited page can be
-          saved back to disk. The next implementation should reuse HyperclayJS
-          for editing, snapshots, dirty checks, persistence attributes, and save
-          behavior, while Hyperspace provides the local server, toolbar,
-          annotation model, and AI-facing tool definitions.
+          saved back to disk. The product target is agent-authored HTML
+          artifacts for review, not a general purpose website editor. HyperclayJS
+          owns editing, snapshots, dirty checks, persistence attributes, and save
+          behavior, while Hyperspace provides the toolbar, annotation model,
+          AI-facing tool definitions, and small glue needed to run on top of
+          Hyperclay Local's server core.
         </p>
 
         <section class="section">
@@ -67,11 +71,11 @@
             </article>
             <article class="decision">
               <span class="status-pill accepted">Accepted</span>
-              <h3>Local save server</h3>
+              <h3>Reuse local server</h3>
               <p>
-                Hyperspace ships a lightweight localhost server that serves the
-                files, injects the configured runtime scripts, implements
-                <code>/_/save</code>, and writes edited HTML back to disk.
+                Prefer Hyperclay Local's server core without the Electron app.
+                The project-local <code>server.js</code> is a compatibility shim
+                for testing, development, and proving runtime injection.
               </p>
             </article>
           </div>
@@ -110,10 +114,12 @@
                   </td>
                 </tr>
                 <tr>
-                  <th>Hyperspace server</th>
+                  <th>Server core</th>
                   <td>
-                    Local file serving, runtime injection, save endpoint, path
-                    validation, backups, and atomic writes.
+                    Hyperclay Local's server behavior: local file serving,
+                    owner cookies, <code>/_/save</code>, path validation,
+                    backups, and writes. Hyperspace should reuse or wrap this
+                    core rather than maintain a competing implementation.
                   </td>
                 </tr>
               </tbody>
@@ -129,11 +135,12 @@
               The file marks only intended user-editable regions as editable.
             </li>
             <li>
-              The user opens the page through the Hyperspace localhost server.
+              The user opens the page through Hyperclay Local's server core or a
+              compatible development shim.
             </li>
             <li>
-              The server injects HyperclayJS and the Hyperspace toolbar at
-              response time.
+              The host provides HyperclayJS and the Hyperspace toolbar, either
+              through source includes or response-time injection.
             </li>
             <li>
               The user edits marked regions and adds annotations to any element.
@@ -155,15 +162,16 @@
             Keep annotations as real HTML close to the content they describe.
             A basic comment is not attached to a particular object; the first
             click chooses the closest reasonable document container, and the
-            comment element is inserted there. CSS and the Hyperspace client own
-            its rendered position, so the comment can float anywhere while the
+            comment element is inserted there. Hyperclay's
+            <code>movable</code> attribute and a durable transform own its
+            rendered position, so the comment can float anywhere while the
             source stays near the document area it belongs to.
           </p>
           <pre><code>&lt;section data-hs-comment-host&gt;
   &lt;h2 editmode:contenteditable&gt;Editable heading&lt;/h2&gt;
 
-  &lt;aside data-hs-comment style="--hs-x: 72px; --hs-y: 120px"&gt;
-    &lt;p&gt;Ask the user whether this framing is right.&lt;/p&gt;
+  &lt;aside data-hs-comment movable style="transform: translate(72px, 120px)"&gt;
+    &lt;p editmode:contenteditable&gt;Ask the user whether this framing is right.&lt;/p&gt;
   &lt;/aside&gt;
 &lt;/section&gt;
 </code></pre>
@@ -177,26 +185,53 @@
         </section>
 
         <section class="section">
+          <h2>Latest milestone</h2>
+          <ol>
+            <li>
+              The runtime now injects a design-doc inspired icon toolbar with a
+              comment tool and save button only. Idle selection is implicit,
+              and editable regions advertise themselves with small Lucide pencil
+              indicators over the component.
+            </li>
+            <li>
+              Explicit editable regions can be edited through the pencil
+              indicator or by double-clicking the text in place, without
+              enabling whole-page edit mode.
+            </li>
+            <li>
+              Basic comments can be created, focused with a single click, moved
+              by holding and dragging, edited with a double click, and deleted
+              from the keyboard while selected. They render as plain red
+              Excalifont text only, without a card, border, background, text
+              shadow, or manual resize box.
+            </li>
+            <li>
+              Saved HTML strips runtime controls, transient edit state, and
+              fixed comment width/height while preserving durable comment HTML.
+            </li>
+            <li>
+              Focus loss now queues a quiet autosave. Manual saves can still
+              show visible feedback, but autosaves should not trigger popups.
+            </li>
+          </ol>
+        </section>
+
+        <section class="section">
           <h2>Next slice</h2>
           <ol>
             <li>
-              Replace the prototype save contract with a Hyperclay-compatible
-              <code>/_/save</code> endpoint.
+              Dogfood the review loop on agent-created artifacts: generate a
+              page, add comments, edit marked regions, save, reload, and have
+              the agent read the resulting HTML.
             </li>
             <li>
-              Add response-time injection for a pinned HyperclayJS config URL
-              and a small Hyperspace client script.
+              Test the Hyperspace client against Hyperclay Local's server core
+              without the Electron app, and keep the current <code>server.js</code>
+              only as a lightweight compatibility shim if needed.
             </li>
             <li>
-              Define the first editable-region convention and toolbar commands.
-            </li>
-            <li>
-              Implement basic comments as nearby HTML elements inserted into the
-              closest comment host, with visual position stored as CSS state.
-            </li>
-            <li>
-              Verify that saved HTML excludes runtime UI and preserves user
-              edits and annotations.
+              Package the browser runtime and local host path without changing
+              the source HTML convention or adding a generated build step.
             </li>
           </ol>
         </section>

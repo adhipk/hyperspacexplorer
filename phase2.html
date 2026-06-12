@@ -14,6 +14,8 @@
           <a href="./index.html">Overview</a>
           <a href="./current-state.html">Current State</a>
           <a href="./phase2.html">Phase 2</a>
+          <a href="./hyperclay-local-server.html">Local Server</a>
+          <a href="./distributables.html">Distributables</a>
           <a href="./plan.html">Plan</a>
           <a href="./comment-isolation.html">Comment Isolation</a>
           <a href="./design-doc.svg">Design SVG</a>
@@ -27,10 +29,10 @@
         </section>
 
         <p class="lede" editmode:contenteditable>
-          The server is intentionally small. It serves local project files,
-          injects the HyperclayJS and Hyperspace runtime only at response time,
-          accepts Hyperclay save requests, and writes the clean HTML file back
-          to disk.
+          The preferred host is Hyperclay Local's server core without the
+          Electron shell. This repo's server documents the compatibility
+          contract: serve local files, provide the Hyperclay runtime, accept
+          Hyperclay save requests, and write clean HTML back to disk.
         </p>
 
         <section class="section split">
@@ -49,7 +51,10 @@ Content-Type: text/plain
           <ol>
             <li>Set local owner cookies for Hyperclay edit mode.</li>
             <li>Serve HTML, CSS, JavaScript, SVG, and other project assets.</li>
-            <li>Inject runtime scripts into HTML responses, not source files.</li>
+            <li>
+              Provide HyperclayJS and the Hyperspace runtime through source
+              includes or response-time injection.
+            </li>
             <li>Resolve save targets from the <code>Page-URL</code> header.</li>
             <li>Allow writes only to safe <code>.html</code> and <code>.htmlclay</code> paths.</li>
             <li>Create backups before overwriting existing files.</li>

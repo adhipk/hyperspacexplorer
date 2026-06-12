@@ -184,7 +184,40 @@ function stripRuntime(html) {
       /\s*<link\b[^>]*\bhref=["'][^"']*hyperspace\.css[^"']*["'][^>]*>\s*/gi,
       "\n"
     )
-    .replace(/\scontenteditable=(["'])true\1/gi, "");
+    .replace(
+      /\s*<style\b[^>]*\bdata-name=["']option-visibility["'][^>]*>\s*<\/style>\s*/gi,
+      "\n"
+    )
+    .replace(
+      /\s(?:contenteditable|inert-contenteditable)(?:=(["'])[^"']*\1)?/gi,
+      ""
+    )
+    .replace(/\s(?:editmode|pageowner|savestatus)=(["'])[^"']*\1/gi, "")
+    .replace(
+      /\sdata-hs-(?:selected|draft|dragging|resizing|inline-editing|commit-bound)(?:=(["'])[^"']*\1)?/gi,
+      ""
+    )
+    .replace(/\smovable-dragging(?:=(["'])[^"']*\1)?/gi, "")
+    .replace(
+      /(<aside\b[^>]*\bdata-hs-comment\b[^>]*)\sdata-hs-color=(["'])[^"']*\2/gi,
+      "$1"
+    )
+    .replace(/(<aside\b[^>]*\bdata-hs-comment\b[^>]*)\stabindex=(["'])0\2/gi, "$1");
+
+  cleaned = cleaned.replace(
+    /(<aside\b(?=[^>]*\bdata-hs-comment\b)[^>]*?)\sstyle=(["'])([^"']*)\2([^>]*>)/gi,
+    (_, before, quote, style, after) => {
+      const cleanedStyle = style
+        .split(";")
+        .map((part) => part.trim())
+        .filter((part) => part && !/^(width|height|resize|overflow)\s*:/i.test(part))
+        .join("; ");
+
+      return cleanedStyle
+        ? `${before} style=${quote}${cleanedStyle}${quote}${after}`
+        : `${before}${after}`;
+    }
+  );
 
   let previous;
   do {

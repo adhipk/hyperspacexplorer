@@ -14,6 +14,8 @@
           <a href="./index.html">Overview</a>
           <a href="./current-state.html">Current State</a>
           <a href="./phase2.html">Phase 2</a>
+          <a href="./hyperclay-local-server.html">Local Server</a>
+          <a href="./distributables.html">Distributables</a>
           <a href="./plan.html">Plan</a>
           <a href="./comment-isolation.html">Comment Isolation</a>
           <a href="./design-doc.svg">Design SVG</a>
@@ -30,8 +32,8 @@
           The current custom <code>hyperedit.js</code> implementation taught the
           right lessons, but the next version should not continue expanding it.
           Hyperspace should become a lightweight layer over HyperclayJS: ordinary
-          HTML files, opt-in editable regions, annotations, tool definitions,
-          and a local server that persists the saved page.
+          HTML review artifacts, opt-in editable regions, basic annotation
+          tools, and a local server that persists the saved page.
         </p>
 
         <section class="section">
@@ -87,8 +89,9 @@
               <span class="status-pill accepted">New</span>
               <h3>Hyperclay runtime</h3>
               <p>
-                The server injects a pinned HyperclayJS config URL, probably
-                starting from a standard or smooth-sailing preset.
+                HyperclayJS is the browser runtime. Hyperclay Local's server
+                core is the preferred local host, ideally reused without the
+                Electron desktop shell.
               </p>
             </article>
             <article class="decision">
@@ -106,15 +109,16 @@
           <h2>Minimal implementation target</h2>
           <ol>
             <li>
-              A project-local HTML file can be served without adding script
-              boilerplate to the source.
+              A project-local HTML file can be served by Hyperclay Local's
+              server core, with no custom save stack in Hyperspace.
             </li>
             <li>
               Only elements marked with editable attributes can receive direct
               text edits.
             </li>
             <li>
-              Any element can receive an annotation through the toolbar.
+              Users can add, focus, move, edit, and delete basic comments
+              through direct comment interactions and keyboard deletion.
             </li>
             <li>
               Basic comments are inserted into the closest document container
@@ -125,8 +129,8 @@
               Runtime overlay UI is excluded from saved HTML.
             </li>
             <li>
-              The server accepts Hyperclay's save request and writes the page
-              back to the correct file.
+              The host accepts Hyperclay's save request and writes the page back
+              to the correct file.
             </li>
           </ol>
         </section>
@@ -144,8 +148,8 @@
           <pre><code>&lt;section data-hs-comment-host&gt;
   &lt;button editmode:contenteditable&gt;Confirm&lt;/button&gt;
 
-  &lt;aside data-hs-comment style="--hs-x: 72px; --hs-y: 120px"&gt;
-    &lt;p&gt;Label may need to be more specific.&lt;/p&gt;
+  &lt;aside data-hs-comment movable style="transform: translate(72px, 120px)"&gt;
+    &lt;p editmode:contenteditable&gt;Label may need to be more specific.&lt;/p&gt;
   &lt;/aside&gt;
 &lt;/section&gt;</code></pre>
         </section>
@@ -155,8 +159,16 @@
           <p>
             The existing <code>hyperedit.js</code> remains useful reference
             code, but it is no longer the target architecture.
-            <code>server.js</code> now follows the Hyperclay-compatible local
-            save contract for the new Hyperspace slice.
+            <code>server.js</code> currently follows the Hyperclay-compatible
+            local save contract as a development shim. The current
+            <code>hyperspace.js</code> and <code>hyperspace.css</code> layer
+            provides targeted text editing through small edit indicators,
+            double-click text edits, a design-doc inspired comment/save toolbar,
+            and durable nearby comments with click-to-focus,
+            hold-to-move, double-click edit, keyboard delete, Excalifont
+            plain red text-only rendering, automatic comment sizing, and quiet
+            focus-loss autosave. The preferred product direction is still to reuse
+            Hyperclay Local's server core without the Electron app.
           </p>
         </section>
       </main>
